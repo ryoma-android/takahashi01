@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Upload, 
   FileText, 
@@ -28,7 +29,8 @@ import {
   Lightbulb,
   Smartphone,
   Monitor,
-  Zap
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
@@ -50,89 +52,17 @@ interface OCRResult {
   };
   rawText?: string;
   previewUrl?: string;
+  error?: string;
 }
 
 export function DocumentOCR() {
-  const [ocrResults, setOcrResults] = useState<OCRResult[]>([
-    {
-      id: '1',
-      fileName: '修繕費領収書_高橋ホーム福井中央_20241025.pdf',
-      fileType: 'pdf',
-      uploadDate: '2024-10-25',
-      status: 'completed',
-      extractedData: {
-        amount: 1200000,
-        date: '2024-10-15',
-        vendor: '福井塗装工業株式会社',
-        category: '修繕費',
-        description: '外壁塗装工事一式（高橋ホーム福井中央アパート）',
-        confidence: 94,
-        propertyName: '高橋ホーム福井中央アパート'
-      },
-      rawText: '領収書\n福井塗装工業株式会社\n外壁塗装工事一式\n金額：1,200,000円\n日付：2024年10月15日\n福井県福井市中央1-5-12'
-    },
-    {
-      id: '2',
-      fileName: '固定資産税納税通知書_福井市.pdf',
-      fileType: 'pdf',
-      uploadDate: '2024-10-20',
-      status: 'completed',
-      extractedData: {
-        amount: 285000,
-        date: '2024-12-27',
-        vendor: '福井市',
-        category: '固定資産税',
-        description: '令和6年度固定資産税（第3期）',
-        confidence: 98,
-        taxType: '固定資産税'
-      }
-    },
-    {
-      id: '3',
-      fileName: '清掃費請求書_福井クリーン.jpg',
-      fileType: 'image',
-      uploadDate: '2024-10-22',
-      status: 'completed',
-      extractedData: {
-        amount: 35000,
-        date: '2024-10-20',
-        vendor: '福井クリーンサービス',
-        category: '清掃費',
-        description: '共用部清掃（月額）',
-        confidence: 89,
-        propertyName: '高橋ホーム福井中央アパート'
-      }
-    },
-    {
-      id: '4',
-      fileName: '駐車場補修見積書.pdf',
-      fileType: 'pdf',
-      uploadDate: '2024-11-01',
-      status: 'processing',
-      extractedData: {}
-    },
-    {
-      id: '5',
-      fileName: '北陸電力請求書_10月分.pdf',
-      fileType: 'pdf',
-      uploadDate: '2024-11-05',
-      status: 'completed',
-      extractedData: {
-        amount: 28000,
-        date: '2024-11-05',
-        vendor: '北陸電力',
-        category: '光熱費',
-        description: '電気料金（10月分）',
-        confidence: 96,
-        propertyName: '高橋ホーム花堂ファミリーマンション'
-      }
-    }
-  ]);
-
+  const [ocrResults, setOcrResults] = useState<OCRResult[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [editingResult, setEditingResult] = useState<string | null>(null);
   const [editData, setEditData] = useState<OCRResult['extractedData']>({});
   const [showGuide, setShowGuide] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   // 高橋ホームの物件リスト
   const takahashiProperties = [
@@ -143,121 +73,147 @@ export function DocumentOCR() {
     '高橋ホーム学園前学生マンション'
   ];
 
-  // PDFデータから生成されたグラフ用データ
-  const monthlyOCRData = [
-    { month: '8月', 件数: 12, 金額: 850000 },
-    { month: '9月', 件数: 15, 金額: 1200000 },
-    { month: '10月', 件数: 18, 金額: 1650000 },
-    { month: '11月', 件数: 8, 金額: 450000 }
-  ];
+  // 初期データの読み込み
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
 
-  const categoryDistribution = [
-    { category: '修繕費', 件数: 15, 金額: 2800000, color: '#EF4444' },
-    { category: '清掃費', 件数: 12, 金額: 420000, color: '#F59E0B' },
-    { category: '光熱費', 件数: 8, 金額: 280000, color: '#10B981' },
-    { category: '固定資産税', 件数: 4, 金額: 1140000, color: '#3B82F6' },
-    { category: 'その他', 件数: 6, 金額: 180000, color: '#8B5CF6' }
-  ];
+  const fetchDocuments = async () => {
+    try {
+      const response = await fetch('/api/ocr');
+      if (response.ok) {
+        const data = await response.json();
+        // データベースの形式をUI用に変換
+        const convertedData = data.map((doc: any) => ({
+          id: doc.id.toString(),
+          fileName: doc.filename,
+          fileType: doc.filename.includes('.pdf') ? 'pdf' : 'image',
+          uploadDate: new Date(doc.created_at).toISOString().split('T')[0],
+          status: 'completed' as const,
+          extractedData: doc.extracted_data || {},
+          rawText: doc.ocr_data?.rawText || ''
+        }));
+        setOcrResults(convertedData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch documents:', error);
+    }
+  };
 
-  const propertyExpenseData = [
-    { property: '高橋ホーム福井中央アパート', 金額: 2100000 },
-    { property: '高橋ホーム駅前パーキング', 金額: 680000 },
-    { property: '高橋ホーム片町商業ビル', 金額: 1200000 },
-    { property: '高橋ホーム花堂ファミリーマンション', 金額: 840000 },
-    { property: '高橋ホーム学園前学生マンション', 金額: 950000 }
-  ];
-
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
 
     setIsUploading(true);
+    setError(null);
 
-    Array.from(files).forEach((file) => {
-      const newResult: OCRResult = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        fileName: file.name,
-        fileType: file.type.includes('image') ? 'image' : 'pdf',
-        uploadDate: new Date().toISOString().split('T')[0],
-        status: 'processing',
-        extractedData: {},
-        previewUrl: URL.createObjectURL(file)
-      };
+    for (const file of Array.from(files)) {
+      let newResult: OCRResult | null = null;
+      
+      try {
+        // 新しい結果を追加（処理中状態）
+        newResult = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          fileName: file.name,
+          fileType: file.type.includes('image') ? 'image' : 'pdf',
+          uploadDate: new Date().toISOString().split('T')[0],
+          status: 'processing',
+          extractedData: {},
+          previewUrl: URL.createObjectURL(file)
+        };
 
-      setOcrResults(prev => [newResult, ...prev]);
+        setOcrResults(prev => [newResult!, ...prev]);
 
-      // Simulate OCR processing
-      setTimeout(() => {
-        simulateOCRProcessing(newResult.id, file.name);
-      }, 2000 + Math.random() * 3000);
-    });
+        // ファイルをAPIに送信
+        const formData = new FormData();
+        formData.append('file', file);
 
-    setIsUploading(false);
-  }, []);
+        setUploadProgress(0);
+        
+        // プログレスシミュレーション
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => {
+            if (prev >= 90) {
+              clearInterval(progressInterval);
+              return 90;
+            }
+            return prev + 10;
+          });
+        }, 500);
 
-  const simulateOCRProcessing = (id: string, fileName: string) => {
-    // 福井市の業者データベースを模擬
-    const fukuiVendors = [
-      '福井塗装工業株式会社', '福井クリーンサービス', '北陸電力', '福井道路工事株式会社',
-      '北陸エレベーター', '福井市', '福井県', '福井ガス', '福井建設'
-    ];
+        const response = await fetch('/api/ocr', {
+          method: 'POST',
+          body: formData,
+        });
 
-    let mockData: OCRResult['extractedData'] = {};
-    
-    if (fileName.includes('領収書') || fileName.includes('receipt')) {
-      mockData = {
-        amount: Math.floor(Math.random() * 800000) + 50000,
-        date: '2024-11-' + (Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0'),
-        vendor: fukuiVendors[Math.floor(Math.random() * fukuiVendors.length)],
-        category: ['修繕費', '清掃費', '保守点検'][Math.floor(Math.random() * 3)],
-        description: '作業費一式（福井市内）',
-        confidence: 85 + Math.random() * 15,
-        propertyName: takahashiProperties[Math.floor(Math.random() * takahashiProperties.length)]
-      };
-    } else if (fileName.includes('税') || fileName.includes('tax')) {
-      mockData = {
-        amount: Math.floor(Math.random() * 400000) + 100000,
-        date: '2024-12-' + (Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0'),
-        vendor: ['福井市', '福井県', '税務署'][Math.floor(Math.random() * 3)],
-        category: '固定資産税',
-        description: '令和6年度固定資産税',
-        confidence: 95 + Math.random() * 5,
-        taxType: '固定資産税'
-      };
-    } else if (fileName.includes('電力') || fileName.includes('ガス')) {
-      mockData = {
-        amount: Math.floor(Math.random() * 50000) + 15000,
-        date: '2024-11-' + (Math.floor(Math.random() * 28) + 1).toString().padStart(2, '0'),
-        vendor: ['北陸電力', '福井ガス'][Math.floor(Math.random() * 2)],
-        category: '光熱費',
-        description: '月額料金',
-        confidence: 92 + Math.random() * 8,
-        propertyName: takahashiProperties[Math.floor(Math.random() * takahashiProperties.length)]
-      };
+        clearInterval(progressInterval);
+        setUploadProgress(100);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'アップロードに失敗しました');
+        }
+
+        const result = await response.json();
+
+        // 結果を更新
+        if (newResult) {
+          setOcrResults(prev => prev.map(item => 
+            item.id === newResult!.id 
+              ? { ...item, ...result.data, status: 'completed' as const }
+              : item
+          ));
+        }
+
+        // プレビューURLをクリーンアップ
+        if (newResult && newResult.previewUrl) {
+          URL.revokeObjectURL(newResult.previewUrl);
+        }
+
+      } catch (error) {
+        console.error('Upload error:', error);
+        setError(error instanceof Error ? error.message : 'アップロードに失敗しました');
+        
+        // エラー状態に更新
+        if (newResult) {
+          setOcrResults(prev => prev.map(item => 
+            item.id === newResult!.id 
+              ? { ...item, status: 'error' as const, error: error instanceof Error ? error.message : 'エラーが発生しました' }
+              : item
+          ));
+        }
+      }
     }
 
-    setOcrResults(prev => prev.map(result => 
-      result.id === id 
-        ? { ...result, status: 'completed', extractedData: mockData }
-        : result
-    ));
-  };
+    setIsUploading(false);
+    setUploadProgress(0);
+    
+    // ファイル入力をリセット
+    event.target.value = '';
+  }, []);
 
   const handleEdit = (result: OCRResult) => {
     setEditingResult(result.id);
     setEditData(result.extractedData);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingResult) return;
 
-    setOcrResults(prev => prev.map(result => 
-      result.id === editingResult 
-        ? { ...result, extractedData: editData }
-        : result
-    ));
-    setEditingResult(null);
-    setEditData({});
+    try {
+      // ここでAPIを呼び出してデータを更新
+      // 現在はローカル状態のみ更新
+      setOcrResults(prev => prev.map(result => 
+        result.id === editingResult 
+          ? { ...result, extractedData: editData }
+          : result
+      ));
+      setEditingResult(null);
+      setEditData({});
+    } catch (error) {
+      console.error('Save error:', error);
+      setError('保存に失敗しました');
+    }
   };
 
   const handleCancelEdit = () => {
@@ -303,6 +259,22 @@ export function DocumentOCR() {
 
   return (
     <div className="space-y-6">
+      {/* エラー表示 */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error}
+            <button 
+              onClick={() => setError(null)}
+              className="ml-2 underline hover:no-underline"
+            >
+              閉じる
+            </button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* OCR説明カード */}
       <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
         <CardHeader>
@@ -320,7 +292,7 @@ export function DocumentOCR() {
               <Smartphone className="h-12 w-12 text-purple-600 mb-3" />
               <h4 className="font-semibold text-lg mb-2">1. 写真を撮る</h4>
               <p className="text-sm text-gray-600">
-                スマホで領収書や請求書を撮影するか、PDFファイルを選択します
+                スマホで領収書や請求書を撮影してください（画像ファイルのみ対応）
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg border flex flex-col items-center text-center">
@@ -352,6 +324,64 @@ export function DocumentOCR() {
                 </ul>
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ファイルアップロード */}
+      <Card className="glass-effect hover-lift">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Upload className="h-6 w-6 text-blue-600" />
+            <span>ファイルをアップロード</span>
+          </CardTitle>
+          <CardDescription>
+            画像ファイル（JPEG、PNG、GIF）を選択してください（最大10MB）。PDFファイルは現在サポートされていません。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <Label htmlFor="file-upload" className="cursor-pointer">
+                <div className="flex items-center space-x-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors">
+                  <Upload className="h-5 w-5 text-gray-500" />
+                  <span className="text-gray-700">ファイルを選択</span>
+                </div>
+              </Label>
+              <Input
+                id="file-upload"
+                type="file"
+                accept=".jpg,.jpeg,.png,.gif"
+                multiple
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={isUploading}
+              />
+              {isUploading && (
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm text-gray-600">アップロード中...</span>
+                </div>
+              )}
+              <Button 
+                onClick={() => document.getElementById('file-upload')?.click()}
+                disabled={isUploading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                ファイル選択
+              </Button>
+            </div>
+            
+            {isUploading && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>アップロード進捗</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="w-full" />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -398,308 +428,222 @@ export function DocumentOCR() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{ocrResults.length}</div>
-            <p className="text-xs text-muted-foreground">アップロード済み</p>
+            <p className="text-xs text-muted-foreground">ファイル</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* PDF Data Analysis Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>月別PDF処理状況</CardTitle>
-            <CardDescription>アップロードされたPDFの処理件数と金額</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyOCRData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip 
-                  formatter={(value: number, name: string) => {
-                    if (name === '件数') return [value, '件'];
-                    return [`¥${value.toLocaleString()}`, '金額'];
-                  }}
-                />
-                <Bar yAxisId="left" dataKey="件数" fill="#3B82F6" />
-                <Bar yAxisId="right" dataKey="金額" fill="#10B981" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>カテゴリ別データ分析</CardTitle>
-            <CardDescription>PDFから抽出されたカテゴリ別データ</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={categoryDistribution}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ category, 件数 }) => `${category} ${件数}件`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="金額"
+      {/* OCR結果一覧 */}
+      <Card className="glass-effect hover-lift">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <FileText className="h-6 w-6 text-blue-600" />
+                <span>処理結果一覧</span>
+              </CardTitle>
+              <CardDescription>アップロードされたファイルのOCR処理結果</CardDescription>
+            </div>
+            <Button 
+              onClick={fetchDocuments}
+              variant="outline"
+              size="sm"
+              className="hover-lift"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              更新
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {ocrResults.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">まだファイルがアップロードされていません</p>
+              <p className="text-sm text-gray-500 mt-2">上記の「ファイルを選択」ボタンからファイルをアップロードしてください</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {ocrResults.map((result) => (
+                <div 
+                  key={result.id} 
+                  className="border rounded-lg p-4 hover:shadow-md transition-shadow"
                 >
-                  {categoryDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Property-wise Expense Analysis */}
-      <Card>
-        <CardHeader>
-          <CardTitle>高橋ホーム物件別支出分析（PDFデータ基準）</CardTitle>
-          <CardDescription>PDFから抽出されたデータによる物件別支出状況</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={propertyExpenseData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="property" />
-              <YAxis />
-              <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-              <Bar dataKey="金額" fill="#8B5CF6" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Upload Area */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Camera className="h-5 w-5" />
-            <span>書類アップロード</span>
-          </CardTitle>
-          <CardDescription>
-            領収書、請求書、納税通知書などをアップロードして自動でデータを抽出・グラフ化します。
-            対応形式: PDF, JPG, PNG
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors">
-            <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-lg font-medium text-gray-700 mb-2">
-              ファイルをドラッグ&ドロップまたはクリックしてアップロード
-            </p>
-            <p className="text-sm text-gray-500 mb-4">
-              PDF、画像ファイル（JPG、PNG）に対応 - 福井市の業者データベース対応
-            </p>
-            <Input
-              type="file"
-              multiple
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="file-upload"
-            />
-            <Label htmlFor="file-upload">
-              <Button variant="outline" className="cursor-pointer" disabled={isUploading}>
-                <Upload className="h-4 w-4 mr-2" />
-                {isUploading ? '処理中...' : 'ファイルを選択'}
-              </Button>
-            </Label>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Results List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>処理結果一覧</CardTitle>
-          <CardDescription>アップロードしたファイルの処理状況と抽出データ</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {ocrResults.map((result) => (
-              <div key={result.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    {getFileIcon(result.fileType)}
-                    <div>
-                      <p className="font-medium">{result.fileName}</p>
-                      <p className="text-sm text-gray-600">アップロード日: {result.uploadDate}</p>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      {getFileIcon(result.fileType)}
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{result.fileName}</h4>
+                        <p className="text-sm text-gray-600">
+                          アップロード日: {result.uploadDate}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {getStatusBadge(result.status)}
+                      {result.status === 'completed' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(result)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          編集
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {getStatusBadge(result.status)}
-                    {result.extractedData.confidence && (
-                      <Badge variant="outline">
-                        信頼度: {Math.round(result.extractedData.confidence)}%
-                      </Badge>
-                    )}
-                  </div>
-                </div>
 
-                {result.status === 'processing' && (
-                  <div className="mt-3">
-                    <div className="flex items-center space-x-2 mb-2">
+                  {result.status === 'processing' && (
+                    <div className="flex items-center space-x-2 text-blue-600">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">OCR処理中...</span>
+                      <span>OCR処理中...</span>
                     </div>
-                    <Progress value={33} className="h-2" />
-                  </div>
-                )}
+                  )}
 
-                {result.status === 'completed' && result.extractedData && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    {editingResult === result.id ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                  {result.status === 'error' && (
+                    <div className="text-red-600 text-sm">
+                      <AlertCircle className="h-4 w-4 inline mr-1" />
+                      {result.error || '処理中にエラーが発生しました'}
+                    </div>
+                  )}
+
+                  {result.status === 'completed' && (
+                    <div className="space-y-4">
+                      {editingResult === result.id ? (
+                        <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label>金額</Label>
+                              <Input
+                                type="number"
+                                value={editData.amount || ''}
+                                onChange={(e) => setEditData(prev => ({ ...prev, amount: Number(e.target.value) }))}
+                              />
+                            </div>
+                            <div>
+                              <Label>日付</Label>
+                              <Input
+                                type="date"
+                                value={editData.date || ''}
+                                onChange={(e) => setEditData(prev => ({ ...prev, date: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <Label>業者名</Label>
+                              <Input
+                                value={editData.vendor || ''}
+                                onChange={(e) => setEditData(prev => ({ ...prev, vendor: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <Label>カテゴリ</Label>
+                              <Select
+                                value={editData.category || ''}
+                                onValueChange={(value) => setEditData(prev => ({ ...prev, category: value }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="カテゴリを選択" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="修繕費">修繕費</SelectItem>
+                                  <SelectItem value="清掃費">清掃費</SelectItem>
+                                  <SelectItem value="保守点検">保守点検</SelectItem>
+                                  <SelectItem value="保険料">保険料</SelectItem>
+                                  <SelectItem value="税金">税金</SelectItem>
+                                  <SelectItem value="管理費">管理費</SelectItem>
+                                  <SelectItem value="広告費">広告費</SelectItem>
+                                  <SelectItem value="光熱費">光熱費</SelectItem>
+                                  <SelectItem value="設備費">設備費</SelectItem>
+                                  <SelectItem value="その他">その他</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
                           <div>
-                            <Label>金額</Label>
-                            <Input
-                              type="number"
-                              value={editData.amount || ''}
-                              onChange={(e) => setEditData({...editData, amount: parseInt(e.target.value) || 0})}
+                            <Label>摘要</Label>
+                            <Textarea
+                              value={editData.description || ''}
+                              onChange={(e) => setEditData(prev => ({ ...prev, description: e.target.value }))}
+                              rows={3}
                             />
                           </div>
-                          <div>
-                            <Label>日付</Label>
-                            <Input
-                              type="date"
-                              value={editData.date || ''}
-                              onChange={(e) => setEditData({...editData, date: e.target.value})}
+                          <div className="flex space-x-2">
+                            <Button onClick={handleSaveEdit} size="sm">
+                              <Save className="h-4 w-4 mr-1" />
+                              保存
+                            </Button>
+                            <Button onClick={handleCancelEdit} variant="outline" size="sm">
+                              キャンセル
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {result.extractedData.amount && (
+                            <div className="bg-green-50 p-3 rounded-lg">
+                              <p className="text-sm text-green-600 font-medium">金額</p>
+                              <p className="text-lg font-bold text-green-800">
+                                ¥{result.extractedData.amount.toLocaleString()}
+                              </p>
+                            </div>
+                          )}
+                          {result.extractedData.date && (
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                              <p className="text-sm text-blue-600 font-medium">日付</p>
+                              <p className="text-lg font-bold text-blue-800">
+                                {result.extractedData.date}
+                              </p>
+                            </div>
+                          )}
+                          {result.extractedData.vendor && (
+                            <div className="bg-purple-50 p-3 rounded-lg">
+                              <p className="text-sm text-purple-600 font-medium">業者名</p>
+                              <p className="text-lg font-bold text-purple-800">
+                                {result.extractedData.vendor}
+                              </p>
+                            </div>
+                          )}
+                          {result.extractedData.category && (
+                            <div className="bg-orange-50 p-3 rounded-lg">
+                              <p className="text-sm text-orange-600 font-medium">カテゴリ</p>
+                              <p className="text-lg font-bold text-orange-800">
+                                {result.extractedData.category}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {result.extractedData.description && (
+                        <div className="bg-gray-50 p-3 rounded-lg">
+                          <p className="text-sm text-gray-600 font-medium">摘要</p>
+                          <p className="text-gray-800">{result.extractedData.description}</p>
+                        </div>
+                      )}
+
+                      {result.rawText && (
+                        <details className="mt-4">
+                          <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800">
+                            <Eye className="h-4 w-4 inline mr-1" />
+                            OCR抽出テキストを表示
+                          </summary>
+                          <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                            <Textarea
+                              value={result.rawText}
+                              readOnly
+                              rows={4}
+                              className="font-mono text-sm"
                             />
                           </div>
-                          <div>
-                            <Label>業者・支払先</Label>
-                            <Input
-                              value={editData.vendor || ''}
-                              onChange={(e) => setEditData({...editData, vendor: e.target.value})}
-                            />
-                          </div>
-                          <div>
-                            <Label>物件名</Label>
-                            <Select 
-                              value={editData.propertyName || ''} 
-                              onValueChange={(value) => setEditData({...editData, propertyName: value})}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="物件を選択" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {takahashiProperties.map((property) => (
-                                  <SelectItem key={property} value={property}>
-                                    {property}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>カテゴリ</Label>
-                            <Select 
-                              value={editData.category || ''} 
-                              onValueChange={(value) => setEditData({...editData, category: value})}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="カテゴリを選択" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="修繕費">修繕費</SelectItem>
-                                <SelectItem value="清掃費">清掃費</SelectItem>
-                                <SelectItem value="保守点検">保守点検</SelectItem>
-                                <SelectItem value="固定資産税">固定資産税</SelectItem>
-                                <SelectItem value="所得税">所得税</SelectItem>
-                                <SelectItem value="保険料">保険料</SelectItem>
-                                <SelectItem value="光熱費">光熱費</SelectItem>
-                                <SelectItem value="その他">その他</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div>
-                          <Label>詳細</Label>
-                          <Textarea
-                            value={editData.description || ''}
-                            onChange={(e) => setEditData({...editData, description: e.target.value})}
-                          />
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button onClick={handleSaveEdit} size="sm">
-                            <Save className="h-4 w-4 mr-1" />
-                            保存
-                          </Button>
-                          <Button variant="outline" onClick={handleCancelEdit} size="sm">
-                            キャンセル
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium text-gray-600">金額:</span>
-                            <span className="ml-2 font-semibold">
-                              {result.extractedData.amount ? `¥${result.extractedData.amount.toLocaleString()}` : '未検出'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-600">日付:</span>
-                            <span className="ml-2">{result.extractedData.date || '未検出'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-600">業者・支払先:</span>
-                            <span className="ml-2">{result.extractedData.vendor || '未検出'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-600">物件名:</span>
-                            <span className="ml-2">{result.extractedData.propertyName || '未分類'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-600">カテゴリ:</span>
-                            <span className="ml-2">
-                              {result.extractedData.category ? (
-                                <Badge variant="outline">{result.extractedData.category}</Badge>
-                              ) : '未分類'}
-                            </span>
-                          </div>
-                        </div>
-                        {result.extractedData.description && (
-                          <div className="text-sm">
-                            <span className="font-medium text-gray-600">詳細:</span>
-                            <span className="ml-2">{result.extractedData.description}</span>
-                          </div>
-                        )}
-                        <div className="flex space-x-2 mt-3">
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(result)}>
-                            <Edit className="h-4 w-4 mr-1" />
-                            編集
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Eye className="h-4 w-4 mr-1" />
-                            プレビュー
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <BarChart3 className="h-4 w-4 mr-1" />
-                            グラフに追加
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            収支に追加
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                        </details>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,33 +1,111 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-
-interface Property {
-  id: number;
-  name: string;
-  type: string;
-  units: number;
-  occupiedUnits: number;
-  monthlyIncome: number;
-  yearlyIncome: number;
-  expenses: number;
-  netIncome: number;
-  yieldRate: number;
-  location: string;
-  address: string;
-  buildYear: number;
-  structure: string;
-  totalFloors: number;
-}
+import { Property } from '@/lib/supabase';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface PropertyDashboardProps {
-  properties: Property[];
+  properties?: Property[]; // オプショナルに変更
 }
 
-export function PropertyDashboard({ properties }: PropertyDashboardProps) {
+export function PropertyDashboard({ properties: initialProperties }: PropertyDashboardProps) {
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // 初期データが渡されている場合はそれを使用、そうでなければAPIから取得
+    if (initialProperties && initialProperties.length > 0) {
+      setProperties(initialProperties);
+      setLoading(false);
+    } else {
+      fetchProperties();
+    }
+  }, [initialProperties]);
+
+  const fetchProperties = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/properties');
+      
+      if (!response.ok) {
+        throw new Error('物件データの取得に失敗しました');
+      }
+
+      const data = await response.json();
+      setProperties(data);
+    } catch (err) {
+      console.error('Error fetching properties:', err);
+      setError(err instanceof Error ? err.message : 'データの取得中にエラーが発生しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ローディング状態
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Card className="glass-effect hover-lift">
+          <CardContent className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <p className="text-gray-600">物件データを読み込み中...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // エラー状態
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error}
+            <button 
+              onClick={fetchProperties}
+              className="ml-2 underline hover:no-underline"
+            >
+              再試行
+            </button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // データが空の場合
+  if (properties.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card className="glass-effect hover-lift">
+          <CardContent className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <p className="text-gray-600 mb-4">物件データが見つかりません</p>
+              <button 
+                onClick={fetchProperties}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                データを再取得
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // 福井市の月別データ（実際のデータに基づく）
   const monthlyData = [
     { month: '1月', revenue: 3030000, expenses: 680000, net: 2350000 },
@@ -43,6 +121,27 @@ export function PropertyDashboard({ properties }: PropertyDashboardProps) {
     { month: '11月', revenue: 3030000, expenses: 800000, net: 2230000 },
     { month: '12月', revenue: 3030000, expenses: 890000, net: 2140000 }
   ];
+
+  // データ変換関数（Supabaseのデータ形式をUI用に変換）
+  const transformPropertyData = (property: Property) => ({
+    id: property.id,
+    name: property.name,
+    type: getPropertyTypeDisplay(property.type),
+    units: property.units,
+    occupiedUnits: property.occupied_units,
+    monthlyIncome: property.monthly_income,
+    yearlyIncome: property.yearly_income,
+    expenses: property.expenses,
+    netIncome: property.net_income,
+    yieldRate: property.yield_rate,
+    location: property.location,
+    address: property.address,
+    buildYear: property.build_year,
+    structure: property.structure,
+    totalFloors: property.total_floors
+  });
+
+  const transformedProperties = properties.map(transformPropertyData);
 
   return (
     <div className="space-y-6">
@@ -126,7 +225,7 @@ export function PropertyDashboard({ properties }: PropertyDashboardProps) {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={properties} layout="horizontal">
+            <BarChart data={transformedProperties} layout="horizontal">
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis type="number" domain={[0, 15]} />
               <YAxis dataKey="name" type="category" width={200} />
@@ -179,7 +278,7 @@ export function PropertyDashboard({ properties }: PropertyDashboardProps) {
                 </tr>
               </thead>
               <tbody>
-                {properties.map((property, index) => (
+                {transformedProperties.map((property, index) => (
                   <tr 
                     key={property.id} 
                     className="border-b border-gray-100 hover:bg-gradient-to-r hover:from-blue-50 hover:to-green-50 transition-all duration-300"
@@ -241,4 +340,16 @@ export function PropertyDashboard({ properties }: PropertyDashboardProps) {
       </Card>
     </div>
   );
+}
+
+// 物件タイプの表示用変換関数
+function getPropertyTypeDisplay(type: string): string {
+  const typeMap: { [key: string]: string } = {
+    'apartment': 'アパート',
+    'parking': '駐車場',
+    'commercial': '店舗・オフィス',
+    'family_mansion': 'ファミリーマンション',
+    'student_mansion': '学生マンション'
+  };
+  return typeMap[type] || type;
 }

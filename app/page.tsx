@@ -28,7 +28,8 @@ import {
   BookOpen,
   Plus,
   Check,
-  X
+  X,
+  Bug
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -60,6 +61,10 @@ const ReportsGenerator = dynamic(() => import('@/components/reports-generator').
 });
 
 const UserGuide = dynamic(() => import('@/components/user-guide').then(mod => mod.UserGuide), {
+  loading: () => <div className="flex items-center justify-center h-64 animate-pulse">読み込み中...</div>
+});
+
+const DebugInfo = dynamic(() => import('@/components/debug-info').then(mod => mod.DebugInfo), {
   loading: () => <div className="flex items-center justify-center h-64 animate-pulse">読み込み中...</div>
 });
 
@@ -511,6 +516,14 @@ export default function TakahashiHomeSystem() {
               <span className="hidden sm:inline">使い方ガイド</span>
               <span className="sm:hidden">ガイド</span>
             </TabsTrigger>
+            <TabsTrigger 
+              value="debug" 
+              className="flex items-center gap-1 sm:gap-2 rounded-xl px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-gray-500 transition-all duration-200 hover:bg-gray-50 hover:text-gray-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-gray-100 data-[state=active]:to-gray-200 data-[state=active]:text-gray-700 data-[state=active]:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 whitespace-nowrap"
+            >
+              <Bug className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">デバッグ情報</span>
+              <span className="sm:hidden">デバッグ</span>
+            </TabsTrigger>
           </TabsList>
             </div>
             
@@ -808,6 +821,10 @@ export default function TakahashiHomeSystem() {
 
             <TabsContent value="guide" className="p-4 sm:p-6">
             <UserGuide />
+          </TabsContent>
+
+            <TabsContent value="debug" className="p-4 sm:p-6">
+            <DebugInfo />
           </TabsContent>
         </Tabs>
       </div>

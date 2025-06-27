@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from "@/components/ui/toaster"
 import { PropertyProvider } from "@/contexts/PropertyContext";
+import { ErrorHandlerProvider } from "@/components/error-handler-provider";
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -36,10 +37,12 @@ export default function RootLayout({
         {/* その他必要なタグ */}
       </head>
       <body className={inter.className} suppressHydrationWarning={true}>
-        <PropertyProvider>
-          {children}
-          <Toaster />
-        </PropertyProvider>
+        <ErrorHandlerProvider>
+          <PropertyProvider>
+            {children}
+            <Toaster />
+          </PropertyProvider>
+        </ErrorHandlerProvider>
       </body>
     </html>
   );

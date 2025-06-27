@@ -5,6 +5,116 @@ const withPWA = require('next-pwa')({
   skipWaiting: true,        // 新しいSWが有効化されたら即時反映
   cleanupOutdatedCaches: true,
   disable: process.env.NODE_ENV === 'development',
+  // ChunkLoadError対策: より積極的なキャッシュクリア
+  runtimeCaching: [
+    {
+      urlPattern: /^https:\/\/fonts\.(?:gstatic|googleapis)\.com\/.*/i,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'google-fonts',
+        expiration: {
+          maxEntries: 4,
+          maxAgeSeconds: 60 * 60 * 24 * 365, // 1年
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:eot|otf|ttc|ttf|woff|woff2|font.css)$/i,
+      handler: 'StaleWhileRevalidate',
+      options: {
+        cacheName: 'static-font-assets',
+        expiration: {
+          maxEntries: 4,
+          maxAgeSeconds: 60 * 60 * 24 * 7, // 1週間
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,
+      handler: 'StaleWhileRevalidate',
+      options: {
+        cacheName: 'static-image-assets',
+        expiration: {
+          maxEntries: 64,
+          maxAgeSeconds: 60 * 60 * 24, // 1日
+        },
+      },
+    },
+    {
+      urlPattern: /\/_next\/image\?url=.+$/i,
+      handler: 'StaleWhileRevalidate',
+      options: {
+        cacheName: 'next-image',
+        expiration: {
+          maxEntries: 64,
+          maxAgeSeconds: 60 * 60 * 24, // 1日
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:js)$/i,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'static-js-assets',
+        networkTimeoutSeconds: 10,
+        expiration: {
+          maxEntries: 32,
+          maxAgeSeconds: 60 * 60 * 24, // 1日
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:css|less)$/i,
+      handler: 'StaleWhileRevalidate',
+      options: {
+        cacheName: 'static-style-assets',
+        expiration: {
+          maxEntries: 32,
+          maxAgeSeconds: 60 * 60 * 24, // 1日
+        },
+      },
+    },
+    {
+      urlPattern: /\/_next\/data\/.+\/.+\.json$/i,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'next-data',
+        networkTimeoutSeconds: 10,
+        expiration: {
+          maxEntries: 32,
+          maxAgeSeconds: 60 * 60 * 24, // 1日
+        },
+      },
+    },
+    {
+      urlPattern: ({ url }) => {
+        return url.origin === self.location.origin && url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/auth/');
+      },
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'apis',
+        networkTimeoutSeconds: 10,
+        expiration: {
+          maxEntries: 16,
+          maxAgeSeconds: 60 * 60 * 24, // 1日
+        },
+      },
+    },
+    {
+      urlPattern: ({ url }) => {
+        return url.origin === self.location.origin && !url.pathname.startsWith('/api/');
+      },
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'others',
+        networkTimeoutSeconds: 10,
+        expiration: {
+          maxEntries: 32,
+          maxAgeSeconds: 60 * 60 * 24, // 1日
+        },
+      },
+    },
+  ],
   // 静的エクスポート時の注意: next/imageを使う場合はunoptimized: trueを推奨
   // images: { unoptimized: true }
 });
@@ -20,7 +130,7 @@ const nextConfig = {
     unoptimized: isExport,
   },
   assetPrefix: process.env.NEXT_PUBLIC_APP_URL || '/', // 環境変数がない場合はルートパスにフォールバック
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
     if (!isServer) {
       // クライアントサイドでNode.js固有のモジュールを無視
       config.resolve.fallback = {
@@ -45,10 +155,33 @@ const nextConfig = {
         'bufferutil': false,
         'utf-8-validate': false,
       };
+
+      // ChunkLoadError対策: より積極的なキャッシュクリア
+      if (!dev) {
+        config.output.chunkFilename = 'static/chunks/[name].[chunkhash].js';
+        config.output.filename = 'static/js/[name].[chunkhash].js';
+        
+        // チャンクローディングのリトライ機能を追加
+        config.optimization.splitChunks = {
+          ...config.optimization.splitChunks,
+          cacheGroups: {
+            ...config.optimization.splitChunks.cacheGroups,
+            default: {
+              minChunks: 1,
+              priority: -20,
+              reuseExistingChunk: true,
+            },
+          },
+        };
+      }
     }
     return config;
   },
   reactStrictMode: true,
+  // より積極的なキャッシュクリア
+  generateEtags: false,
+  compress: true,
+  poweredByHeader: false,
 };
 
 module.exports = withPWA(nextConfig);

@@ -19,6 +19,7 @@ const nextConfig = {
   images: {
     unoptimized: isExport,
   },
+  assetPrefix: process.env.NEXT_PUBLIC_APP_URL || '/', // 環境変数がない場合はルートパスにフォールバック
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // クライアントサイドでNode.js固有のモジュールを無視

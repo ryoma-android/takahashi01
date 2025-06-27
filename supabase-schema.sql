@@ -25,11 +25,14 @@ CREATE TABLE properties (
 CREATE TABLE expenses (
   id BIGSERIAL PRIMARY KEY,
   property_id BIGINT REFERENCES properties(id) ON DELETE CASCADE,
+  property_name VARCHAR(255),
   category VARCHAR(100) NOT NULL,
   amount DECIMAL(10,2) NOT NULL,
   description TEXT,
+  vendor VARCHAR(255),
   date DATE NOT NULL,
   receipt_url TEXT,
+  document_id INTEGER REFERENCES documents(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -51,15 +54,17 @@ CREATE TABLE documents (
   id BIGSERIAL PRIMARY KEY,
   property_id BIGINT REFERENCES properties(id) ON DELETE CASCADE,
   type VARCHAR(50) NOT NULL CHECK (type IN ('receipt', 'contract', 'invoice', 'other')),
-  filename VARCHAR(255) NOT NULL,
+  file_name VARCHAR(255),
   file_url TEXT NOT NULL,
   ocr_data JSONB,
   extracted_data JSONB,
+  extracted_text TEXT,
+  status VARCHAR(50) DEFAULT 'pending',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 取引テーブル（収支データの一元管理）
-CREATE TABLE transactions (
+CREATE TABLE IF NOT EXISTS transactions (
   id BIGSERIAL PRIMARY KEY,
   property_id BIGINT REFERENCES properties(id) ON DELETE SET NULL,
   type VARCHAR(20) NOT NULL CHECK (type IN ('income', 'expense')),
@@ -74,6 +79,22 @@ CREATE TABLE transactions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 税金・保険管理テーブル（支払予定と実績）
+CREATE TABLE IF NOT EXISTS taxes_insurances (
+  id BIGSERIAL PRIMARY KEY,
+  property_id BIGINT REFERENCES properties(id) ON DELETE SET NULL,
+  name VARCHAR(255) NOT NULL,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('tax', 'insurance')),
+  category VARCHAR(100) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  due_date DATE NOT NULL,
+  payment_date DATE,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('paid', 'pending', 'overdue')),
+  description TEXT,
+  reminder_days_before INTEGER NOT NULL DEFAULT 7,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- インデックスの作成
 CREATE INDEX idx_properties_type ON properties(type);
 CREATE INDEX idx_properties_location ON properties(location);
@@ -85,15 +106,15 @@ CREATE INDEX idx_tax_insurance_due_date ON tax_insurance(due_date);
 CREATE INDEX idx_tax_insurance_status ON tax_insurance(status);
 CREATE INDEX idx_documents_property_id ON documents(property_id);
 CREATE INDEX idx_documents_type ON documents(type);
-CREATE INDEX idx_transactions_property_id ON transactions(property_id);
-CREATE INDEX idx_transactions_type ON transactions(type);
-CREATE INDEX idx_transactions_date ON transactions(date);
-CREATE INDEX idx_transactions_category ON transactions(category);
-CREATE INDEX idx_transactions_document_id ON transactions(document_id);
-CREATE INDEX idx_taxes_insurances_property_id ON taxes_insurances(property_id);
-CREATE INDEX idx_taxes_insurances_type ON taxes_insurances(type);
-CREATE INDEX idx_taxes_insurances_due_date ON taxes_insurances(due_date);
-CREATE INDEX idx_taxes_insurances_status ON taxes_insurances(status);
+CREATE INDEX IF NOT EXISTS idx_transactions_property_id ON transactions(property_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
+CREATE INDEX IF NOT EXISTS idx_transactions_document_id ON transactions(document_id);
+CREATE INDEX IF NOT EXISTS idx_taxes_insurances_property_id ON taxes_insurances(property_id);
+CREATE INDEX IF NOT EXISTS idx_taxes_insurances_type ON taxes_insurances(type);
+CREATE INDEX IF NOT EXISTS idx_taxes_insurances_due_date ON taxes_insurances(due_date);
+CREATE INDEX IF NOT EXISTS idx_taxes_insurances_status ON taxes_insurances(status);
 
 -- 更新日時の自動更新トリガー
 CREATE OR REPLACE FUNCTION update_updated_at_column()

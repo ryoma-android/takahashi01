@@ -40,4 +40,20 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { id } = await request.json();
+    if (!id) return NextResponse.json({ error: 'Missing property id' }, { status: 400 });
+    const { error } = await supabase.from('properties').delete().eq('id', id);
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting property:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete property' },
+      { status: 500 }
+    );
+  }
 } 

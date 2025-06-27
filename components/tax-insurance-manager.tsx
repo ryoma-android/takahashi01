@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, AlertTriangle, CheckCircle, Clock, Plus, Bell, FileText, Building2, MapPin } from 'lucide-react';
+import { Calendar, AlertTriangle, CheckCircle, Clock, Plus, Bell, FileText, Building2, MapPin, Loader2, Calculator } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface TaxInsuranceItem {
   id: number;
@@ -22,102 +24,14 @@ interface TaxInsuranceItem {
   description?: string;
   paymentDate?: string;
   reminderDays: number;
-  propertyName?: string;
   location?: string;
+  insuranceCompany?: string;
+  contractPeriod?: string;
+  municipality?: string;
 }
 
 export function TaxInsuranceManager() {
-  const [items, setItems] = useState<TaxInsuranceItem[]>([
-    {
-      id: 1,
-      name: '固定資産税（第3期）',
-      type: 'tax',
-      category: '固定資産税',
-      amount: 285000,
-      dueDate: '2024-12-27',
-      status: 'pending',
-      description: '福井市内全物件の固定資産税',
-      reminderDays: 7,
-      location: '福井市'
-    },
-    {
-      id: 2,
-      name: '個人事業税',
-      type: 'tax',
-      category: '事業税',
-      amount: 180000,
-      dueDate: '2024-11-30',
-      status: 'overdue',
-      description: '不動産賃貸業 個人事業税',
-      reminderDays: 7,
-      location: '福井県'
-    },
-    {
-      id: 3,
-      name: '建物保険更新（福井中央）',
-      type: 'insurance',
-      category: '火災保険',
-      amount: 95000,
-      dueDate: '2024-12-15',
-      status: 'pending',
-      description: '火災・地震保険 年間保険料',
-      reminderDays: 14,
-      propertyName: 'アパート福井中央',
-      location: '福井市中央1丁目'
-    },
-    {
-      id: 4,
-      name: '固定資産税（第2期）',
-      type: 'tax',
-      category: '固定資産税',
-      amount: 285000,
-      dueDate: '2024-09-30',
-      status: 'paid',
-      description: '福井市内全物件の固定資産税',
-      paymentDate: '2024-09-25',
-      reminderDays: 7,
-      location: '福井市'
-    },
-    {
-      id: 5,
-      name: '所得税予定納税（第2期）',
-      type: 'tax',
-      category: '所得税',
-      amount: 320000,
-      dueDate: '2024-11-30',
-      status: 'pending',
-      description: '令和6年分所得税予定納税',
-      reminderDays: 7,
-      location: '福井税務署'
-    },
-    {
-      id: 6,
-      name: '駐車場保険更新',
-      type: 'insurance',
-      category: '賠償責任保険',
-      amount: 45000,
-      dueDate: '2024-12-20',
-      status: 'pending',
-      description: '駐車場賠償責任保険',
-      reminderDays: 14,
-      propertyName: '駐車場福井駅前',
-      location: '福井市大手3丁目'
-    },
-    {
-      id: 7,
-      name: '店舗ビル保険更新',
-      type: 'insurance',
-      category: '火災保険',
-      amount: 120000,
-      dueDate: '2025-01-15',
-      status: 'pending',
-      description: '店舗総合保険',
-      reminderDays: 30,
-      propertyName: '店舗ビル片町',
-      location: '福井市順化1丁目'
-    }
-  ]);
-
+  const [items, setItems] = useState<TaxInsuranceItem[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     name: '',
@@ -127,20 +41,16 @@ export function TaxInsuranceManager() {
     dueDate: '',
     description: '',
     reminderDays: '7',
-    propertyName: '',
-    location: ''
+    location: '',
+    insuranceCompany: '',
+    contractPeriod: '',
+    municipality: '',
   });
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editItem, setEditItem] = useState<TaxInsuranceItem | null>(null);
 
   const taxCategories = ['固定資産税', '所得税', '事業税', '住民税', '消費税', 'その他'];
   const insuranceCategories = ['火災保険', '地震保険', '賠償責任保険', 'その他'];
-  
-  // 福井市の物件リスト
-  const fukuiProperties = [
-    'アパート福井中央',
-    '駐車場福井駅前', 
-    '店舗ビル片町',
-    'マンション福井南'
-  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -170,391 +80,633 @@ export function TaxInsuranceManager() {
   };
 
   const getDaysUntilDue = (dueDate: string) => {
-    const today = new Date();
+    if (!dueDate) return null;
     const due = new Date(dueDate);
+    if (isNaN(due.getTime())) return null;
+    const today = new Date();
     const diffTime = due.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (newItem.name && newItem.category && newItem.amount && newItem.dueDate) {
-      const item: TaxInsuranceItem = {
-        id: Date.now(),
-        name: newItem.name,
-        type: newItem.type,
-        category: newItem.category,
-        amount: parseInt(newItem.amount),
-        dueDate: newItem.dueDate,
-        status: 'pending',
-        description: newItem.description,
-        reminderDays: parseInt(newItem.reminderDays),
-        propertyName: newItem.propertyName,
-        location: newItem.location
-      };
-      setItems([...items, item]);
-      setNewItem({
-        name: '',
-        type: 'tax',
-        category: '',
-        amount: '',
-        dueDate: '',
-        description: '',
-        reminderDays: '7',
-        propertyName: '',
-        location: ''
-      });
-      setIsAddDialogOpen(false);
+      try {
+        // DBカラムだけを送信
+        const postData = {
+          type: newItem.type,
+          name: newItem.name,
+          amount: parseInt(newItem.amount),
+          due_date: newItem.dueDate,
+          status: 'pending',
+          description: newItem.description || '',
+          created_at: new Date().toISOString(),
+        };
+        const res = await fetch('/api/tax-insurance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(postData),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          alert('保存に失敗しました: ' + (err.error || res.status));
+          return;
+        }
+        // 保存後に一覧を再取得
+        const listRes = await fetch('/api/tax-insurance');
+        const list = await listRes.json();
+        setItems(list.map((item: any) => ({ ...item, dueDate: item.due_date })));
+        setNewItem({
+          name: '',
+          type: 'tax',
+          category: '',
+          amount: '',
+          dueDate: '',
+          description: '',
+          reminderDays: '7',
+          location: '',
+          insuranceCompany: '',
+          contractPeriod: '',
+          municipality: '',
+        });
+        setIsAddDialogOpen(false);
+      } catch (e) {
+        alert('保存時にエラーが発生しました');
+      }
     }
   };
 
-  const markAsPaid = (id: number) => {
-    setItems(items.map(item => 
-      item.id === id 
-        ? { ...item, status: 'paid' as const, paymentDate: new Date().toISOString().split('T')[0] }
-        : item
-    ));
+  const markAsPaid = async (id: number) => {
+    try {
+      // DBのstatusを'paid'に更新
+      await fetch(`/api/tax-insurance`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'paid' }),
+      });
+      // 再取得
+      const listRes = await fetch('/api/tax-insurance');
+      const list = await listRes.json();
+      setItems(list.map((item: any) => ({ ...item, dueDate: item.due_date })));
+    } catch (e) {
+      alert('支払済みへの更新に失敗しました');
+    }
   };
 
-  const pendingItems = items.filter(item => item.status === 'pending');
-  const overdueItems = items.filter(item => item.status === 'overdue');
+  // フィルタ: 未払い・期限切れのみ表示
+  const visibleItems = items.filter(item => item.status === 'pending' || item.status === 'overdue');
+  const pendingItems = visibleItems.filter(item => item.status === 'pending');
+  const overdueItems = visibleItems.filter(item => item.status === 'overdue');
   const totalPendingAmount = pendingItems.reduce((sum, item) => sum + item.amount, 0);
   const totalOverdueAmount = overdueItems.reduce((sum, item) => sum + item.amount, 0);
 
-  // 福井市特有の税務情報
-  const fukuiTaxInfo = [
-    { name: '固定資産税', rate: '1.4%', office: '福井市役所', phone: '0776-20-5310' },
-    { name: '個人事業税', rate: '5%', office: '福井県税事務所', phone: '0776-21-8270' },
-    { name: '所得税', rate: '累進課税', office: '福井税務署', phone: '0776-23-2690' }
-  ];
+  // 編集開始
+  const handleEdit = (item: TaxInsuranceItem) => {
+    setEditItem(item);
+    setIsEditDialogOpen(true);
+  };
+  // 編集保存
+  const handleUpdate = async () => {
+    if (!editItem) return;
+    try {
+      console.log('PATCH送信前 dueDate:', editItem.dueDate);
+      const patchData = {
+        id: editItem.id,
+        name: editItem.name,
+        type: editItem.type,
+        amount: editItem.amount,
+        due_date: editItem.dueDate,
+        status: editItem.status,
+        description: editItem.description || '',
+      };
+      await fetch('/api/tax-insurance', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patchData),
+      });
+      const listRes = await fetch('/api/tax-insurance');
+      const list = await listRes.json();
+      setItems(list.map((item: any) => ({ ...item, dueDate: item.due_date })));
+      setIsEditDialogOpen(false);
+      setEditItem(null);
+    } catch (e) {
+      alert('編集の保存に失敗しました');
+    }
+  };
+  // 削除
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('本当に削除しますか？')) return;
+    try {
+      await fetch('/api/tax-insurance', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const listRes = await fetch('/api/tax-insurance');
+      const list = await listRes.json();
+      setItems(list.map((item: any) => ({ ...item, dueDate: item.due_date })));
+    } catch (e) {
+      alert('削除に失敗しました');
+    }
+  };
+
+  useEffect(() => {
+    // 初回マウント時にDBからデータ取得
+    fetch('/api/tax-insurance')
+      .then(res => res.json())
+      .then(data => setItems(
+        data.map((item: any) => ({
+          ...item,
+          dueDate: item.due_date,
+        }))
+      ))
+      .catch(() => setItems([]));
+  }, []);
 
   return (
     <div className="space-y-6">
-      {/* 福井市税務情報 */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2 text-blue-800">
-            <MapPin className="h-5 w-5" />
-            <span>福井市税務・保険情報</span>
-          </CardTitle>
-          <CardDescription className="text-blue-700">
-            福井市内不動産オーナー向けの税務・保険関連情報
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {fukuiTaxInfo.map((info, index) => (
-              <div key={index} className="bg-white p-4 rounded-lg border">
-                <h4 className="font-semibold text-gray-900">{info.name}</h4>
-                <p className="text-sm text-gray-600 mt-1">税率: {info.rate}</p>
-                <p className="text-sm text-gray-600">{info.office}</p>
-                <p className="text-sm text-blue-600 font-medium">{info.phone}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">未払い項目</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{pendingItems.length}</div>
-            <p className="text-xs text-muted-foreground">項目</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">期限切れ</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{overdueItems.length}</div>
-            <p className="text-xs text-muted-foreground">項目</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">未払い金額</CardTitle>
-            <Calendar className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">¥{totalPendingAmount.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">合計</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">期限切れ金額</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">¥{totalOverdueAmount.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">要対応</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Urgent Items */}
-      {(overdueItems.length > 0 || pendingItems.some(item => getDaysUntilDue(item.dueDate) <= 7)) && (
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="text-red-800 flex items-center">
-              <AlertTriangle className="h-5 w-5 mr-2" />
-              緊急対応が必要な項目
-            </CardTitle>
-            <CardDescription className="text-red-700">
-              期限切れまたは7日以内に期限を迎える項目
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {[...overdueItems, ...pendingItems.filter(item => getDaysUntilDue(item.dueDate) <= 7)].map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <p className="font-medium">{item.name}</p>
-                      {item.propertyName && (
-                        <Badge variant="outline" className="text-xs">
-                          <Building2 className="h-3 w-3 mr-1" />
-                          {item.propertyName}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      期限: {item.dueDate} • {item.location}
-                      {item.status === 'overdue' ? (
-                        <span className="text-red-600 ml-2">({Math.abs(getDaysUntilDue(item.dueDate))}日経過)</span>
-                      ) : (
-                        <span className="text-amber-600 ml-2">({getDaysUntilDue(item.dueDate)}日後)</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">¥{item.amount.toLocaleString()}</p>
-                    <Button size="sm" className="mt-1" onClick={() => markAsPaid(item.id)}>
-                      支払済にする
-                    </Button>
-                  </div>
+      {/* Add Dialog is always rendered */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-[520px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              新しい税務・保険項目を追加
+            </DialogTitle>
+            <DialogDescription>
+              支払予定の詳細情報を入力してください。
+            </DialogDescription>
+          </DialogHeader>
+          <Tabs defaultValue={newItem.type} onValueChange={v => setNewItem({ ...newItem, type: v as 'tax' | 'insurance', category: '', insuranceCompany: '', contractPeriod: '', municipality: '' })}>
+            <TabsList className="mb-4 w-full grid grid-cols-2">
+              <TabsTrigger value="tax">税金</TabsTrigger>
+              <TabsTrigger value="insurance">保険</TabsTrigger>
+            </TabsList>
+            <TabsContent value="tax">
+              <div className="grid gap-4 py-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="category">カテゴリ <span className="text-red-500">*</span></Label>
+                  <Select value={newItem.category} onValueChange={value => setNewItem({ ...newItem, category: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="カテゴリを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {taxCategories.map(category => (
+                        <SelectItem key={category} value={category}>{category}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="name">項目名 <span className="text-red-500">*</span></Label>
+                  <Input id="name" placeholder="例: 令和6年度 固定資産税" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
+                </div>
+                {newItem.category === '固定資産税' && (
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="municipality">自治体 <span className="text-red-500">*</span></Label>
+                    <Input id="municipality" placeholder="例: 福井市" value={newItem.municipality} onChange={e => setNewItem({ ...newItem, municipality: e.target.value })} />
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="amount">金額 <span className="text-red-500">*</span></Label>
+                  <Input id="amount" type="number" placeholder="金額を入力" value={newItem.amount} onChange={e => setNewItem({ ...newItem, amount: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="dueDate">納期限 <span className="text-red-500">*</span></Label>
+                  <Input id="dueDate" type="date" value={newItem.dueDate} onChange={e => setNewItem({ ...newItem, dueDate: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="reminderDays">リマインダー</Label>
+                  <Select value={newItem.reminderDays} onValueChange={value => setNewItem({ ...newItem, reminderDays: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="リマインダー日数を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1日前</SelectItem>
+                      <SelectItem value="3">3日前</SelectItem>
+                      <SelectItem value="7">7日前</SelectItem>
+                      <SelectItem value="14">14日前</SelectItem>
+                      <SelectItem value="30">30日前</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="description">説明</Label>
+                  <Textarea id="description" placeholder="詳細説明（任意）" value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} />
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="insurance">
+              <div className="grid gap-4 py-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="category">カテゴリ <span className="text-red-500">*</span></Label>
+                  <Select value={newItem.category} onValueChange={value => setNewItem({ ...newItem, category: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="カテゴリを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {insuranceCategories.map(category => (
+                        <SelectItem key={category} value={category}>{category}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="name">保険名 <span className="text-red-500">*</span></Label>
+                  <Input id="name" placeholder="例: ○○火災保険" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="insuranceCompany">保険会社 <span className="text-red-500">*</span></Label>
+                  <Input id="insuranceCompany" placeholder="例: ○○損保" value={newItem.insuranceCompany} onChange={e => setNewItem({ ...newItem, insuranceCompany: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="contractPeriod">契約期間 <span className="text-red-500">*</span></Label>
+                  <Input id="contractPeriod" placeholder="例: 2024/04/01〜2025/03/31" value={newItem.contractPeriod} onChange={e => setNewItem({ ...newItem, contractPeriod: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="amount">年額 <span className="text-red-500">*</span></Label>
+                  <Input id="amount" type="number" placeholder="年額を入力" value={newItem.amount} onChange={e => setNewItem({ ...newItem, amount: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="dueDate">納期限 <span className="text-red-500">*</span></Label>
+                  <Input id="dueDate" type="date" value={newItem.dueDate} onChange={e => setNewItem({ ...newItem, dueDate: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="reminderDays">リマインダー</Label>
+                  <Select value={newItem.reminderDays} onValueChange={value => setNewItem({ ...newItem, reminderDays: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="リマインダー日数を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1日前</SelectItem>
+                      <SelectItem value="3">3日前</SelectItem>
+                      <SelectItem value="7">7日前</SelectItem>
+                      <SelectItem value="14">14日前</SelectItem>
+                      <SelectItem value="30">30日前</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="description">説明</Label>
+                  <Textarea id="description" placeholder="詳細説明（任意）" value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} />
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow" onClick={handleAddItem}>
+              <Plus className="h-4 w-4 mr-1" />追加
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      {/* Main List */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
+      {/* CRMライクな税務・保険管理ダッシュボード */}
+      <div className="space-y-6">
+        {/* ヘッダーセクション */}
+        <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 rounded-2xl p-8 text-white">
+          <div className="flex items-center justify-between">
             <div>
-              <CardTitle>税務・保険管理</CardTitle>
-              <CardDescription>福井市内物件の支払予定と実績の一覧</CardDescription>
+              <h1 className="text-3xl font-bold mb-2">税務・保険管理</h1>
+              <p className="text-purple-100 text-lg">支払予定の一元管理と期限管理</p>
             </div>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  項目を追加
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>新しい税務・保険項目を追加</DialogTitle>
-                  <DialogDescription>
-                    支払予定の詳細情報を入力してください。
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="type" className="text-right">種類</Label>
-                    <Select value={newItem.type} onValueChange={(value: 'tax' | 'insurance') => setNewItem({...newItem, type: value, category: ''})}>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="種類を選択" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="tax">税金</SelectItem>
-                        <SelectItem value="insurance">保険</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="category" className="text-right">カテゴリ</Label>
-                    <Select value={newItem.category} onValueChange={(value) => setNewItem({...newItem, category: value})}>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="カテゴリを選択" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(newItem.type === 'tax' ? taxCategories : insuranceCategories).map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">項目名</Label>
-                    <Input
-                      id="name"
-                      placeholder="項目名を入力"
-                      className="col-span-3"
-                      value={newItem.name}
-                      onChange={(e) => setNewItem({...newItem, name: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="amount" className="text-right">金額</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="金額を入力"
-                      className="col-span-3"
-                      value={newItem.amount}
-                      onChange={(e) => setNewItem({...newItem, amount: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="dueDate" className="text-right">期限</Label>
-                    <Input
-                      id="dueDate"
-                      type="date"
-                      className="col-span-3"
-                      value={newItem.dueDate}
-                      onChange={(e) => setNewItem({...newItem, dueDate: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="propertyName" className="text-right">物件名</Label>
-                    <Select value={newItem.propertyName} onValueChange={(value) => setNewItem({...newItem, propertyName: value})}>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="物件を選択（任意）" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fukuiProperties.map((property) => (
-                          <SelectItem key={property} value={property}>
-                            {property}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="location" className="text-right">所在地</Label>
-                    <Input
-                      id="location"
-                      placeholder="福井市○○"
-                      className="col-span-3"
-                      value={newItem.location}
-                      onChange={(e) => setNewItem({...newItem, location: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="reminderDays" className="text-right">リマインダー</Label>
-                    <Select value={newItem.reminderDays} onValueChange={(value) => setNewItem({...newItem, reminderDays: value})}>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="3">3日前</SelectItem>
-                        <SelectItem value="7">7日前</SelectItem>
-                        <SelectItem value="14">14日前</SelectItem>
-                        <SelectItem value="30">30日前</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="description" className="text-right">詳細</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="詳細情報"
-                      className="col-span-3"
-                      value={newItem.description}
-                      onChange={(e) => setNewItem({...newItem, description: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                    キャンセル
-                  </Button>
-                  <Button onClick={handleAddItem}>
-                    追加
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-2xl font-bold">{items.length}</div>
+                <div className="text-purple-100 text-sm">管理項目</div>
+              </div>
+              <Button 
+                onClick={() => setIsAddDialogOpen(true)}
+                className="bg-white text-purple-600 hover:bg-purple-50 font-semibold px-6 py-3 rounded-xl shadow-lg"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                新規項目
+              </Button>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {items.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()).map((item) => (
-              <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <Badge variant={item.type === 'tax' ? 'default' : 'secondary'}>
-                      {item.type === 'tax' ? '税金' : '保険'}
-                    </Badge>
-                    <Badge variant="outline">{item.category}</Badge>
-                    {item.propertyName && (
-                      <Badge variant="outline" className="text-xs">
-                        <Building2 className="h-3 w-3 mr-1" />
-                        {item.propertyName}
-                      </Badge>
-                    )}
-                    <Badge className={getStatusColor(item.status)}>
-                      {getStatusIcon(item.status)}
-                      <span className="ml-1">{getStatusText(item.status)}</span>
-                    </Badge>
-                  </div>
-                  <h4 className="font-semibold">{item.name}</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    期限: {item.dueDate} • {item.location}
-                    {item.status === 'paid' && item.paymentDate && (
-                      <span className="ml-2 text-green-600">（支払日: {item.paymentDate}）</span>
-                    )}
-                    {item.status !== 'paid' && (
-                      <span className={`ml-2 ${getDaysUntilDue(item.dueDate) < 0 ? 'text-red-600' : getDaysUntilDue(item.dueDate) <= 7 ? 'text-amber-600' : 'text-gray-600'}`}>
-                        {getDaysUntilDue(item.dueDate) < 0 
-                          ? `${Math.abs(getDaysUntilDue(item.dueDate))}日経過`
-                          : `${getDaysUntilDue(item.dueDate)}日後`
-                        }
-                      </span>
-                    )}
-                  </p>
-                  {item.description && (
-                    <p className="text-sm text-gray-500 mt-1">{item.description}</p>
-                  )}
+        </div>
+
+        {/* データが空の場合 */}
+        {items.length === 0 && (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-12">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Calculator className="h-10 w-10 text-purple-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">税務・保険項目を追加してください</h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                支払予定の税務・保険情報を登録すると、期限管理と支払い状況を一元管理できます
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 max-w-2xl mx-auto">
+                <div className="text-center p-4 bg-gray-50 rounded-xl">
+                  <FileText className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-gray-700">税金管理</p>
+                  <p className="text-xs text-gray-500">固定資産税、所得税など</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold">¥{item.amount.toLocaleString()}</p>
-                  <div className="flex space-x-2 mt-2">
-                    {item.status !== 'paid' && (
-                      <Button variant="outline" size="sm" onClick={() => markAsPaid(item.id)}>
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        支払済
-                      </Button>
-                    )}
-                    <Button variant="outline" size="sm">
-                      <Bell className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <FileText className="h-4 w-4" />
-                    </Button>
-                  </div>
+                <div className="text-center p-4 bg-gray-50 rounded-xl">
+                  <Building2 className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-gray-700">保険管理</p>
+                  <p className="text-xs text-gray-500">火災保険、地震保険など</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 rounded-xl">
+                  <Bell className="h-6 w-6 text-orange-600 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-gray-700">期限管理</p>
+                  <p className="text-xs text-gray-500">支払期限の自動チェック</p>
                 </div>
               </div>
-            ))}
+              <Button 
+                onClick={() => setIsAddDialogOpen(true)}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                最初の項目を追加
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        {/* データがある場合 */}
+        {items.length > 0 && (
+          <>
+            {/* 統計カード */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  </div>
+                  <Badge variant="outline" className="text-yellow-600 border-yellow-200">
+                    未払い
+                  </Badge>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 mb-1">{pendingItems.length}</div>
+                <p className="text-sm text-gray-600">項目</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-pink-100 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="h-6 w-6 text-red-600" />
+                  </div>
+                  <Badge variant="outline" className="text-red-600 border-red-200">
+                    期限切れ
+                  </Badge>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 mb-1">{overdueItems.length}</div>
+                <p className="text-sm text-gray-600">項目</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center">
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <Badge variant="outline" className="text-blue-600 border-blue-200">
+                    未払い金額
+                  </Badge>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 mb-1">¥{totalPendingAmount.toLocaleString()}</div>
+                <p className="text-sm text-gray-600">合計</p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-orange-100 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="h-6 w-6 text-red-600" />
+                  </div>
+                  <Badge variant="outline" className="text-red-600 border-red-200">
+                    要対応
+                  </Badge>
+                </div>
+                <div className="text-3xl font-bold text-red-600 mb-1">¥{totalOverdueAmount.toLocaleString()}</div>
+                <p className="text-sm text-gray-600">期限切れ金額</p>
+              </div>
+            </div>
+
+            {/* 緊急対応セクション */}
+            {(overdueItems.length > 0 || pendingItems.some(item => (getDaysUntilDue(item.dueDate) ?? 0) <= 7)) && (
+              <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-2xl p-6 border border-red-200 shadow-lg">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-red-800">緊急対応が必要な項目</h2>
+                    <p className="text-red-700 text-sm">期限切れまたは7日以内に期限を迎える項目</p>
+                  </div>
+                </div>
+                <div className="grid gap-4">
+                  {[...overdueItems, ...pendingItems.filter(item => (getDaysUntilDue(item.dueDate) ?? 0) <= 7)].map((item) => (
+                    <div key={item.id} className="bg-white rounded-xl p-6 border border-red-200 shadow-sm hover:shadow-md transition-all duration-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <h3 className="font-bold text-gray-900 text-lg">{item.name}</h3>
+                            {item.municipality && (
+                              <Badge variant="outline" className="text-xs border-blue-200 text-blue-700">
+                                <Building2 className="h-3 w-3 mr-1" />
+                                {item.municipality}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
+                              期限: {item.dueDate}
+                            </span>
+                            {(() => { 
+                              const days = getDaysUntilDue(item.dueDate); 
+                              return item.status === 'overdue' ? (
+                                <span className="text-red-600 font-semibold">({days === null ? '-' : `${Math.abs(days)}日経過`})</span>
+                              ) : (
+                                <span className="text-amber-600 font-semibold">({days === null ? '-' : `${days}日後`})</span>
+                              ); 
+                            })()}
+                          </div>
+                          {item.insuranceCompany && (
+                            <p className="text-sm text-gray-600">保険会社: {item.insuranceCompany}</p>
+                          )}
+                          {item.contractPeriod && (
+                            <p className="text-sm text-gray-600">契約期間: {item.contractPeriod}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-red-600 mb-3">
+                            ¥{item.amount.toLocaleString()}
+                          </div>
+                          {item.status !== 'paid' && (
+                            <Button 
+                              size="sm" 
+                              className="bg-red-600 hover:bg-red-700 text-white"
+                              onClick={() => markAsPaid(item.id)}
+                            >
+                              支払済にする
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* メインリスト */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-3">
+                      <FileText className="h-6 w-6 text-purple-600" />
+                      税務・保険管理
+                      <Badge variant="secondary" className="ml-2">
+                        {visibleItems.length}件
+                      </Badge>
+                    </h2>
+                    <p className="text-gray-600 mt-1">支払予定の管理と期限チェック</p>
+                  </div>
+                  <Button 
+                    onClick={() => setIsAddDialogOpen(true)}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg"
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    新規項目
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="grid gap-4">
+                  {visibleItems.map((item) => (
+                    <div key={item.id} className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-6 border border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all duration-300">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Badge className={`${getStatusColor(item.status)} font-medium`}>
+                              {getStatusIcon(item.status)}
+                              {getStatusText(item.status)}
+                            </Badge>
+                            <h3 className="font-bold text-gray-900 text-lg">{item.name}</h3>
+                            {item.municipality && (
+                              <Badge variant="outline" className="text-xs border-blue-200 text-blue-700">
+                                <Building2 className="h-3 w-3 mr-1" />
+                                {item.municipality}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                            <span className="flex items-center gap-1">
+                              <FileText className="h-4 w-4" />
+                              {item.category}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
+                              期限: {item.dueDate}
+                            </span>
+                            {(() => { 
+                              const days = getDaysUntilDue(item.dueDate); 
+                              return item.status === 'overdue' ? (
+                                <span className="text-red-600 font-semibold">({days === null ? '-' : `${Math.abs(days)}日経過`})</span>
+                              ) : item.status === 'pending' ? (
+                                <span className="text-amber-600 font-semibold">({days === null ? '-' : `${days}日後`})</span>
+                              ) : (
+                                <span className="text-green-600 font-semibold">支払済: {item.paymentDate}</span>
+                              ); 
+                            })()}
+                          </div>
+                          {item.insuranceCompany && (
+                            <p className="text-sm text-gray-600">保険会社: {item.insuranceCompany}</p>
+                          )}
+                          {item.contractPeriod && (
+                            <p className="text-sm text-gray-600">契約期間: {item.contractPeriod}</p>
+                          )}
+                          {item.description && (
+                            <p className="text-sm text-gray-500 mt-2">{item.description}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-gray-900 mb-3">
+                            ¥{item.amount.toLocaleString()}
+                          </div>
+                          {item.status !== 'paid' && (
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                size="sm" 
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => markAsPaid(item.id)}
+                              >
+                                支払済
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                                onClick={() => handleEdit(item)}
+                              >
+                                編集
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="border-red-200 text-red-700 hover:bg-red-50"
+                                onClick={() => handleDelete(item.id)}
+                              >
+                                削除
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="sm:max-w-[520px] max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                税務・保険項目を編集
+              </DialogTitle>
+              <DialogDescription>
+                項目の詳細情報を編集します
+              </DialogDescription>
+            </DialogHeader>
+            {editItem && (
+              <div className="grid gap-4 py-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-name">項目名</Label>
+                  <Input id="edit-name" value={editItem?.name || ''} onChange={e => setEditItem(editItem ? { ...editItem, name: e.target.value } : null)} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-amount">金額</Label>
+                  <Input id="edit-amount" type="number" value={editItem?.amount || ''} onChange={e => setEditItem(editItem ? { ...editItem, amount: Number(e.target.value) } : null)} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-dueDate">納期限</Label>
+                  <Input id="edit-dueDate" type="date" value={editItem?.dueDate || ''} onChange={e => setEditItem(editItem ? { ...editItem, dueDate: e.target.value } : null)} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit-description">説明</Label>
+                  <Textarea id="edit-description" value={editItem?.description || ''} onChange={e => setEditItem(editItem ? { ...editItem, description: e.target.value } : null)} />
+                </div>
+                <div className="flex justify-end space-x-2 mt-4">
+                  <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>キャンセル</Button>
+                  <Button className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-bold shadow" onClick={handleUpdate}>保存</Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }

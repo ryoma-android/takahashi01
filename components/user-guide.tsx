@@ -141,10 +141,10 @@ export function UserGuide() {
   const handleContactDeveloper = (type: 'line' | 'email') => {
     if (type === 'line') {
       // LINEの開発者アカウントに遷移
-      window.open('https://line.me/ti/p/YOUR_LINE_ID', '_blank');
+      window.open('https://line.me/ti/p/s5p2vsyaoB', '_blank');
     } else if (type === 'email') {
       // メールアプリを開く
-      window.location.href = 'mailto:developer@takahashi-home-system.jp?subject=高橋ホームシステムについて&body=お疲れ様です。%0A%0A高橋ホームシステムについてお問い合わせいたします。%0A%0A【お問い合わせ内容】%0A%0A%0A【ご利用環境】%0A・ブラウザ：%0A・OS：%0A%0Aよろしくお願いいたします。';
+      window.location.href = 'mailto:takahashiryouma0102@gmail.com?subject=タカハシホームシステムについて&body=お疲れ様です。%0A%0Aタカハシホームシステムについてお問い合わせいたします。%0A%0A【お問い合わせ内容】%0A%0A%0A【ご利用環境】%0A・ブラウザ：%0A・OS：%0A%0Aよろしくお願いいたします。';
     }
   };
 
@@ -155,7 +155,7 @@ export function UserGuide() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2 text-blue-800">
             <HelpCircle className="h-6 w-6" />
-            <span>高橋ホームシステム 使い方ガイド</span>
+            <span>タカハシホームシステム 使い方ガイド</span>
           </CardTitle>
           <CardDescription className="text-blue-700">
             ITが苦手な方でも安心してご利用いただけるよう、わかりやすく説明いたします
@@ -174,14 +174,14 @@ export function UserGuide() {
               <Phone className="h-8 w-8 text-green-600" />
               <div>
                 <h4 className="font-semibold">電話サポート</h4>
-                <p className="text-sm text-gray-600">0776-XX-XXXX（平日9-17時）</p>
+                <p className="text-sm text-gray-600">080-8699-7005</p>
               </div>
             </div>
             <div className="bg-white p-4 rounded-lg border flex items-center space-x-3">
               <Mail className="h-8 w-8 text-purple-600" />
               <div>
                 <h4 className="font-semibold">メールサポート</h4>
-                <p className="text-sm text-gray-600">support@takahashi-home.jp</p>
+                <p className="text-sm text-gray-600">takahashiryouma0102@gmail.com</p>
               </div>
             </div>
           </div>
@@ -501,7 +501,7 @@ export function UserGuide() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm text-gray-600">• developer@takahashi-home-system.jp</p>
+                    <p className="text-sm text-gray-600">• takahashiryouma0102@gmail.com</p>
                     <p className="text-sm text-gray-600">• 返信時間: 24時間以内</p>
                     <p className="text-sm text-gray-600">• ファイル添付可能</p>
                   </div>
@@ -537,7 +537,7 @@ export function UserGuide() {
           {/* 通常サポート連絡先 */}
           <Card className="bg-gradient-to-r from-blue-50 to-green-50 border-blue-200">
             <CardHeader>
-              <CardTitle className="text-blue-800">高橋ホーム サポート窓口</CardTitle>
+              <CardTitle className="text-blue-800">タカハシホーム サポート窓口</CardTitle>
               <CardDescription className="text-blue-700">
                 一般的なご質問やサポートはこちらへ
               </CardDescription>
@@ -553,9 +553,7 @@ export function UserGuide() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="font-bold text-xl text-blue-600">0776-XX-XXXX</p>
-                    <p className="text-sm text-gray-600">受付時間: 平日 9:00-17:00</p>
-                    <p className="text-sm text-gray-600">土日祝日: 緊急時のみ対応</p>
+                    <p className="font-bold text-xl text-blue-600">080-8699-7005</p>
                   </div>
                   <Button className="w-full mt-4 bg-blue-600 hover:bg-blue-700">
                     <Phone className="h-4 w-4 mr-2" />
@@ -572,7 +570,7 @@ export function UserGuide() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <p className="font-bold text-lg text-green-600">support@takahashi-home.jp</p>
+                    <p className="font-bold text-lg text-green-600">takahashiryouma0102@gmail.com</p>
                     <p className="text-sm text-gray-600">返信時間: 24時間以内</p>
                     <p className="text-sm text-gray-600">画面のスクリーンショットを添付していただくと、より早く解決できます</p>
                   </div>

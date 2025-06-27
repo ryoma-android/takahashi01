@@ -11,6 +11,7 @@
     "test": "jest --config jest.config.js"
   },
   "dependencies": {
+    "@google-cloud/vision": "^5.2.0",
     "@hookform/resolvers": "^3.9.0",
     "@next/swc-wasm-nodejs": "13.5.1",
     "@radix-ui/react-accordion": "^1.2.0",
@@ -59,9 +60,9 @@
     "lucide-react": "^0.446.0",
     "multer": "^1.4.5-lts.1",
     "next": "13.5.1",
+    "next-pwa": "^5.6.0",
     "next-themes": "^0.3.0",
     "openai": "^4.20.1",
-    "pdf-parse": "^1.1.1",
     "postcss": "8.4.30",
     "react": "18.2.0",
     "react-day-picker": "^8.10.1",
@@ -74,7 +75,6 @@
     "tailwind-merge": "^2.5.2",
     "tailwindcss": "3.3.3",
     "tailwindcss-animate": "^1.0.7",
-    "tesseract.js": "^5.0.3",
     "typescript": "5.2.2",
     "vaul": "^0.9.9",
     "xlsx": "^0.18.5",

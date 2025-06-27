@@ -196,3 +196,9 @@
 .counter {
   font-variant-numeric: tabular-nums;
 }
+
+/* タブのアクティブ状態にアニメーション */
+.tabs-trigger[data-state="active"] {
+  transition: background 0.3s, color 0.3s, box-shadow 0.3s;
+  box-shadow: 0 2px 8px rgba(59,130,246,0.08);
+}

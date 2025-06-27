@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,8 +10,62 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Upload, Plus, Edit, Trash2, Receipt, Calendar, DollarSign, Building2, TrendingUp, TrendingDown, Filter, X } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { Upload, Plus, Edit, Trash2, Receipt, Calendar, DollarSign, Building2, TrendingUp, TrendingDown, Filter, X, Loader2, List, Download, FileText } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, TooltipProps, Legend } from 'recharts';
+import { supabase } from '@/lib/supabase';
+import { ChartErrorBoundary } from '@/components/chart-error-boundary';
+import { 
+  sanitizeArrayNumbers, 
+  filterValidChartData, 
+  createDefaultChartData, 
+  getSafeDomain,
+  isValidChartData 
+} from '@/lib/chart-utils';
+import { useProperties } from '@/contexts/PropertyContext';
+
+// カスタムTooltipコンポーネント
+const CustomTooltip = ({ active, payload, label }: TooltipProps<any, any>) => {
+  if (active && payload && payload.length) {
+    const totalAmount = payload.reduce((sum, entry) => {
+      const safeValue = isNaN(entry.value) || !isFinite(entry.value) ? 0 : entry.value;
+      return sum + (safeValue || 0);
+    }, 0);
+    
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+        <p className="font-semibold text-gray-900 mb-2">{label}の支出</p>
+        <div className="space-y-1">
+          {payload.map((entry, index) => {
+            const safeValue = isNaN(entry.value) || !isFinite(entry.value) ? 0 : entry.value;
+            return (
+              <div key={index} className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-sm font-medium text-gray-700">{entry.name}</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900">
+                  ¥{safeValue.toLocaleString()}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="border-t border-gray-200 mt-2 pt-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-900">合計</span>
+            <span className="text-sm font-bold text-blue-600">
+              ¥{totalAmount.toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 interface Property {
   id: number;
@@ -26,16 +80,14 @@ interface ExpenseTrackerProps {
 
 interface Expense {
   id: number;
-  propertyId: number;
-  propertyName: string;
+  property_id: number;
+  property_name: string;
   date: string;
   category: string;
-  description: string;
   amount: number;
-  vendor: string;
-  receiptUrl?: string;
-  status: 'paid' | 'pending' | 'overdue';
-  paymentMethod?: string;
+  room_no?: string;
+  tenant_name?: string;
+  created_at: string;
 }
 
 interface PropertyData {
@@ -43,119 +95,39 @@ interface PropertyData {
   name: string;
   type: string;
   units: number;
-  occupiedUnits: number;
-  monthlyIncome: number;
-  yearlyIncome: number;
+  occupied_units: number;
+  monthly_income: number;
+  yearly_income: number;
   expenses: number;
-  netIncome: number;
-  yieldRate: number;
+  net_income: number;
+  yield_rate: number;
   location: string;
   address: string;
-  buildYear: number;
+  build_year: number;
   structure: string;
-  totalFloors: number;
+  total_floors: number;
 }
 
-export function ExpenseTracker({ properties }: ExpenseTrackerProps) {
-  const [expenses, setExpenses] = useState<Expense[]>([
-    {
-      id: 1,
-      propertyId: 1,
-      propertyName: '高橋ホーム福井中央アパート',
-      date: '2024-10-15',
-      category: '修繕費',
-      description: '外壁塗装工事（福井市内業者）',
-      amount: 1200000,
-      vendor: '福井塗装工業株式会社',
-      status: 'paid',
-      paymentMethod: '銀行振込'
-    },
-    {
-      id: 2,
-      propertyId: 1,
-      propertyName: '高橋ホーム福井中央アパート',
-      date: '2024-10-20',
-      category: '清掃費',
-      description: '共用部清掃（月額）',
-      amount: 35000,
-      vendor: '福井クリーンサービス',
-      status: 'paid',
-      paymentMethod: '口座振替'
-    },
-    {
-      id: 3,
-      propertyId: 2,
-      propertyName: '高橋ホーム駅前パーキング',
-      date: '2024-10-25',
-      category: '保守点検',
-      description: 'アスファルト補修工事',
-      amount: 180000,
-      vendor: '福井道路工事株式会社',
-      status: 'pending',
-      paymentMethod: '現金'
-    },
-    {
-      id: 4,
-      propertyId: 3,
-      propertyName: '高橋ホーム片町商業ビル',
-      date: '2024-11-01',
-      category: '設備費',
-      description: 'エレベーター定期点検',
-      amount: 85000,
-      vendor: '北陸エレベーター',
-      status: 'paid',
-      paymentMethod: '銀行振込'
-    },
-    {
-      id: 5,
-      propertyId: 4,
-      propertyName: '高橋ホーム花堂ファミリーマンション',
-      date: '2024-11-05',
-      category: '光熱費',
-      description: '共用部電気代（10月分）',
-      amount: 28000,
-      vendor: '北陸電力',
-      status: 'pending',
-      paymentMethod: '口座振替'
-    }
-  ]);
-
-  // 手動で追加する物件データ
-  const [propertyData, setPropertyData] = useState<PropertyData[]>([
-    {
-      id: 1,
-      name: '高橋ホーム福井中央アパート',
-      type: 'アパート',
-      units: 16,
-      occupiedUnits: 15,
-      monthlyIncome: 960000,
-      yearlyIncome: 11520000,
-      expenses: 1800000,
-      netIncome: 9720000,
-      yieldRate: 9.2,
-      location: '福井市中央',
-      address: '福井県福井市中央1-5-12',
-      buildYear: 2020,
-      structure: 'RC造',
-      totalFloors: 4
-    }
-  ]);
-
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isAddPropertyDialogOpen, setIsAddPropertyDialogOpen] = useState(false);
-  const [selectedProperties, setSelectedProperties] = useState<number[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+export function ExpenseTracker() {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const { properties, fetchProperties } = useProperties();
   
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ propertyId: number; yearMonth: string } | null>(null);
+
+  // 追加: 必要なstateの初期化
   const [newExpense, setNewExpense] = useState({
-    propertyId: '',
+    propertyName: '',
     date: '',
     category: '',
-    description: '',
     amount: '',
-    vendor: '',
-    paymentMethod: ''
+    roomNo: '',
+    tenantName: '',
   });
-
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [newProperty, setNewProperty] = useState({
     name: '',
     type: '',
@@ -168,138 +140,426 @@ export function ExpenseTracker({ properties }: ExpenseTrackerProps) {
     address: '',
     buildYear: '',
     structure: '',
-    totalFloors: ''
+    totalFloors: '',
+    date: '',
+    roomNo: '',
+    tenantName: '',
+    amount: '',
+    category: '家賃',
+  });
+  const [isAddPropertyDialogOpen, setIsAddPropertyDialogOpen] = useState(false);
+  const [selectedProperties, setSelectedProperties] = useState<number[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<any>(null);
+  const [newTenant, setNewTenant] = useState({
+    roomNo: '',
+    tenantName: '',
+    amount: '',
+    date: '',
   });
 
-  const categories = [
-    '修繕費', '清掃費', '保守点検', '保険料', '税金', '管理費', '広告費', '光熱費', '設備費', 'その他'
-  ];
+  // データフェッチ
+  useEffect(() => {
+    fetchData();
+  }, [properties]);
 
-  const propertyTypes = ['アパート', 'マンション', '戸建て', '駐車場', '店舗・オフィス', '学生マンション', 'その他'];
-  const structures = ['RC造', 'SRC造', 'S造', '木造', 'その他'];
-  const paymentMethods = ['現金', '銀行振込', '口座振替', 'クレジットカード'];
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 支出データを取得
+      const { data: expensesData, error: expensesError } = await supabase
+        .from('expenses')
+        .select(`
+          *,
+          properties(name)
+        `)
+        .order('date', { ascending: false });
+
+      if (expensesError) {
+        console.error('Expenses fetch error:', expensesError);
+        setError('支出データの取得に失敗しました');
+        return;
+      }
+
+      const formattedExpenses = expensesData?.map(expense => ({
+        ...expense,
+        property_name: expense.property_name || expense.properties?.name || '不明'
+      })) || [];
+
+      setExpenses(formattedExpenses);
+
+    } catch (error) {
+      console.error('Data fetch error:', error);
+      setError('データの取得に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 物件・年月ごとにグループ化（家賃のみ）
+  const propertyMonthGroups = (() => {
+    const map = new Map<string, { propertyId: number; propertyName: string; yearMonth: string; total: number }>();
+    const rentExpenses = expenses.filter(exp => exp.category === '家賃');
+    
+    // フィルター適用
+    const filteredRentExpenses = rentExpenses.filter(expense => {
+      const propertyMatch = selectedProperties.length === 0 || selectedProperties.includes(expense.property_id);
+      return propertyMatch;
+    });
+    
+    filteredRentExpenses.forEach(exp => {
+      const yearMonth = exp.date.slice(0, 7); // YYYY-MM
+      const key = `${exp.property_id}_${yearMonth}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          propertyId: exp.property_id,
+          propertyName: exp.property_name,
+          yearMonth,
+          total: 0,
+        });
+      }
+      map.get(key)!.total += exp.amount || 0;
+    });
+    return Array.from(map.values()).sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+  })();
+
+  // 年間比較グラフ用データ（物件ごと・年ごと・月ごと）
+  const yearlyComparisonData = (() => {
+    // { [year]: { [propertyName]: [12ヶ月分の合計] } }
+    const yearMap: Record<string, Record<string, number[]>> = {};
+    expenses.forEach(exp => {
+      const date = new Date(exp.date);
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const property = exp.property_name;
+      if (!yearMap[year]) yearMap[year] = {};
+      if (!yearMap[year][property]) yearMap[year][property] = Array(12).fill(0);
+      yearMap[year][property][month] += exp.amount || 0;
+    });
+    // グラフ用配列 [{ year, month, property1: 金額, property2: 金額, ... }]
+    const result: any[] = [];
+    Object.entries(yearMap).forEach(([year, propObj]) => {
+      for (let m = 0; m < 12; m++) {
+        const row: any = { year, month: `${m + 1}月` };
+        Object.entries(propObj).forEach(([property, arr]) => {
+          row[property] = arr[m];
+        });
+        result.push(row);
+      }
+    });
+    return result;
+  })();
+
+  // 家賃のみフィルタ
+  const rentExpenses = expenses.filter(exp => exp.category === '家賃');
 
   // フィルター適用
-  const filteredExpenses = expenses.filter(expense => {
-    const propertyMatch = selectedProperties.length === 0 || selectedProperties.includes(expense.propertyId);
+  const filteredExpenses = rentExpenses.filter(expense => {
+    const propertyMatch = selectedProperties.length === 0 || selectedProperties.includes(expense.property_id);
     const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(expense.category);
     return propertyMatch && categoryMatch;
   });
 
-  const filteredPropertyData = propertyData.filter(property => 
+  const filteredPropertyData = properties.filter(property => 
     selectedProperties.length === 0 || selectedProperties.includes(property.id)
   );
 
-  // 福井市の月別支出データ（フィルター適用）
+  // 月別支出データ（実際のデータから生成）
   const getFilteredMonthlyData = () => {
-    const baseData = [
-      { month: '1月', 修繕費: 200000, 清掃費: 35000, 保守点検: 60000, 光熱費: 45000, その他: 40000 },
-      { month: '2月', 修繕費: 120000, 清掃費: 35000, 保守点検: 30000, 光熱費: 38000, その他: 25000 },
-      { month: '3月', 修繕費: 350000, 清掃費: 35000, 保守点検: 80000, 光熱費: 42000, その他: 35000 },
-      { month: '4月', 修繕費: 180000, 清掃費: 35000, 保守点検: 45000, 光熱費: 35000, その他: 30000 },
-      { month: '5月', 修繕費: 450000, 清掃費: 35000, 保守点検: 120000, 光熱費: 32000, その他: 50000 },
-      { month: '6月', 修繕費: 150000, 清掃費: 35000, 保守点検: 55000, 光熱費: 38000, その他: 25000 },
-      { month: '7月', 修繕費: 220000, 清掃費: 35000, 保守点検: 70000, 光熱費: 48000, その他: 35000 },
-      { month: '8月', 修繕費: 180000, 清掃費: 35000, 保守点検: 40000, 光熱費: 52000, その他: 28000 },
-      { month: '9月', 修繕費: 130000, 清掃費: 35000, 保守点検: 35000, 光熱費: 40000, その他: 22000 },
-      { month: '10月', 修繕費: 1200000, 清掃費: 35000, 保守点検: 180000, 光熱費: 35000, その他: 85000 },
-    ];
+    const monthlyData: { [key: string]: any } = {};
+    
+    filteredExpenses.forEach(expense => {
+      const month = new Date(expense.date).getMonth() + 1;
+      const monthKey = `${month}月`;
+      
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { month: monthKey };
+      }
+      
+      if (!monthlyData[monthKey][expense.category]) {
+        monthlyData[monthKey][expense.category] = 0;
+      }
+      
+      monthlyData[monthKey][expense.category] += expense.amount || 0;
+    });
 
-    if (selectedCategories.length === 0) return baseData;
-
-    return baseData.map(month => {
-      const filteredMonth: any = { month: month.month };
-      selectedCategories.forEach(category => {
-        if (month[category as keyof typeof month]) {
-          filteredMonth[category] = month[category as keyof typeof month];
+    // 各月のデータにNaNチェックを追加
+    const validatedData = Object.values(monthlyData).map(monthData => {
+      const validatedMonth: { [key: string]: any } = { month: monthData.month };
+      
+      Object.keys(monthData).forEach(key => {
+        if (key !== 'month') {
+          const value = monthData[key];
+          validatedMonth[key] = isNaN(value) || !isFinite(value) ? 0 : value;
         }
       });
-      return filteredMonth;
+      
+      return validatedMonth;
     });
+
+    // データをサニタイズして返す
+    return sanitizeArrayNumbers(validatedData);
   };
 
-  // カテゴリ別支出分析（フィルター適用）
+  // カテゴリ別分析（実際のデータから生成）
   const getCategoryAnalysis = () => {
-    const baseAnalysis = [
-      { category: '修繕費', amount: 3200000, percentage: 65.3, color: '#EF4444' },
-      { category: '清掃費', amount: 420000, percentage: 8.6, color: '#F59E0B' },
-      { category: '保守点検', amount: 715000, percentage: 14.6, color: '#3B82F6' },
-      { category: '光熱費', amount: 405000, percentage: 8.3, color: '#10B981' },
-      { category: 'その他', amount: 160000, percentage: 3.2, color: '#8B5CF6' }
-    ];
+    const categoryTotals: { [key: string]: number } = {};
+    const colors = ['#EF4444', '#F59E0B', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'];
+    
+    filteredExpenses.forEach(expense => {
+      if (!categoryTotals[expense.category]) {
+        categoryTotals[expense.category] = 0;
+      }
+      categoryTotals[expense.category] += expense.amount || 0;
+    });
 
-    if (selectedCategories.length === 0) return baseAnalysis;
-    return baseAnalysis.filter(item => selectedCategories.includes(item.category));
+    const total = Object.values(categoryTotals).reduce((sum, value) => sum + (value || 0), 0);
+
+    const analysis = Object.entries(categoryTotals).map(([name, value], index) => ({
+      name,
+      value: value || 0,
+      percentage: total > 0 ? Number(((value || 0) / total * 100).toFixed(1)) : 0,
+      color: colors[index % colors.length]
+    }));
+
+    // データをサニタイズして返す
+    return sanitizeArrayNumbers(analysis);
   };
 
-  const handleAddExpense = () => {
-    if (newExpense.propertyId && newExpense.date && newExpense.category && newExpense.amount) {
-      const property = properties.find(p => p.id.toString() === newExpense.propertyId);
-      const expense: Expense = {
-        id: Date.now(),
-        propertyId: parseInt(newExpense.propertyId),
-        propertyName: property?.name || '',
-        date: newExpense.date,
-        category: newExpense.category,
-        description: newExpense.description,
-        amount: parseInt(newExpense.amount),
-        vendor: newExpense.vendor,
-        status: 'paid',
-        paymentMethod: newExpense.paymentMethod
-      };
-      setExpenses([...expenses, expense]);
-      setNewExpense({
-        propertyId: '',
-        date: '',
-        category: '',
-        description: '',
-        amount: '',
-        vendor: '',
-        paymentMethod: ''
-      });
-      setIsAddDialogOpen(false);
+  const handleAddExpense = async () => {
+    if (newExpense.propertyName && newExpense.date && newExpense.category && newExpense.amount && newExpense.roomNo && newExpense.tenantName) {
+      try {
+        const property = properties.find(p => p.name === newExpense.propertyName);
+        const expenseData = {
+          property_id: property?.id || null,
+          property_name: newExpense.propertyName,
+          date: newExpense.date ? (newExpense.date.length === 7 ? newExpense.date + '-01' : newExpense.date) : '', // YYYY-MM → YYYY-MM-01
+          category: newExpense.category || '家賃',
+          amount: parseInt(newExpense.amount),
+          room_no: newExpense.roomNo,
+          tenant_name: newExpense.tenantName,
+        };
+        const { data, error } = await supabase
+          .from('expenses')
+          .insert([expenseData])
+          .select();
+        if (error) {
+          alert('支出の追加に失敗しました。');
+          return;
+        }
+        if (data && data[0]) {
+          setExpenses(prev => [data[0], ...prev]);
+        }
+        setNewExpense({
+          propertyName: '',
+          date: '',
+          category: '',
+          amount: '',
+          roomNo: '',
+          tenantName: '',
+        });
+        setIsAddDialogOpen(false);
+      } catch (error) {
+        alert('支出の追加に失敗しました。');
+      }
     }
   };
 
-  const handleAddProperty = () => {
-    if (newProperty.name && newProperty.type && newProperty.units && newProperty.monthlyIncome) {
-      const property: PropertyData = {
-        id: Date.now(),
-        name: newProperty.name,
-        type: newProperty.type,
-        units: parseInt(newProperty.units),
-        occupiedUnits: parseInt(newProperty.occupiedUnits) || 0,
-        monthlyIncome: parseInt(newProperty.monthlyIncome),
-        yearlyIncome: parseInt(newProperty.yearlyIncome) || parseInt(newProperty.monthlyIncome) * 12,
-        expenses: parseInt(newProperty.expenses) || 0,
-        netIncome: (parseInt(newProperty.yearlyIncome) || parseInt(newProperty.monthlyIncome) * 12) - (parseInt(newProperty.expenses) || 0),
-        yieldRate: 0, // 計算で求める
-        location: newProperty.location,
-        address: newProperty.address,
-        buildYear: parseInt(newProperty.buildYear) || new Date().getFullYear(),
-        structure: newProperty.structure,
-        totalFloors: parseInt(newProperty.totalFloors) || 1
-      };
-      
-      // 利回り計算
-      property.yieldRate = property.yearlyIncome > 0 ? (property.netIncome / property.yearlyIncome) * 100 : 0;
-      
-      setPropertyData([...propertyData, property]);
-      setNewProperty({
-        name: '',
-        type: '',
-        units: '',
-        occupiedUnits: '',
-        monthlyIncome: '',
-        yearlyIncome: '',
-        expenses: '',
-        location: '',
-        address: '',
-        buildYear: '',
-        structure: '',
-        totalFloors: ''
-      });
-      setIsAddPropertyDialogOpen(false);
+  const handleEditExpense = (expense: Expense) => {
+    setEditingExpense(expense);
+    setNewExpense({
+      propertyName: expense.property_name,
+      date: expense.date,
+      category: expense.category,
+      amount: expense.amount.toString(),
+      roomNo: expense.room_no || '',
+      tenantName: expense.tenant_name || '',
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateExpense = async () => {
+    if (editingExpense && newExpense.propertyName && newExpense.date && newExpense.category && newExpense.amount) {
+      try {
+        const property = properties.find(p => p.name === newExpense.propertyName);
+        
+        // Supabaseに更新するデータ
+        const updateData = {
+          property_id: property?.id || null,
+          property_name: newExpense.propertyName,
+          date: newExpense.date,
+          category: newExpense.category,
+          amount: parseInt(newExpense.amount),
+          room_no: newExpense.roomNo,
+          tenant_name: newExpense.tenantName,
+        };
+
+        // Supabaseでデータを更新
+        const { data, error } = await supabase
+          .from('expenses')
+          .update(updateData)
+          .eq('id', editingExpense.id)
+          .select();
+
+        if (error) {
+          console.error('Expense update error:', error);
+          alert('支出の更新に失敗しました。');
+          return;
+        }
+
+        // 成功メッセージ
+        alert('支出を更新しました。');
+        
+        // フロントエンドの状態を即座に更新
+        if (data && data[0]) {
+          const updatedExpenseItem = {
+            ...data[0],
+            property_name: newExpense.propertyName,
+            room_no: newExpense.roomNo,
+            tenant_name: newExpense.tenantName,
+          };
+          setExpenses(prev => prev.map(exp => 
+            exp.id === editingExpense.id ? updatedExpenseItem : exp
+          ));
+        }
+        
+        // フォームをリセット
+        setNewExpense({
+          propertyName: '',
+          date: '',
+          category: '',
+          amount: '',
+          roomNo: '',
+          tenantName: '',
+        });
+        setEditingExpense(null);
+        setIsEditDialogOpen(false);
+      } catch (error) {
+        console.error('Update expense error:', error);
+        alert('支出の更新に失敗しました。');
+      }
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: number) => {
+    const expenseToDelete = expenses.find(exp => exp.id === expenseId);
+    if (expenseToDelete) {
+      try {
+        // Supabaseからデータを削除
+        const { error } = await supabase
+          .from('expenses')
+          .delete()
+          .eq('id', expenseId);
+
+        if (error) {
+          console.error('Expense delete error:', error);
+          alert('支出の削除に失敗しました。');
+          return;
+        }
+
+        // 成功メッセージを表示
+        alert(`支出（¥${expenseToDelete.amount.toLocaleString()}）を削除しました。`);
+        
+        // フロントエンドの状態を即座に更新
+        setExpenses(prev => prev.filter(exp => exp.id !== expenseId));
+      } catch (error) {
+        console.error('Delete expense error:', error);
+        alert('支出の削除に失敗しました。');
+      }
+    }
+  };
+
+  const handleDownloadExpense = (expense: Expense) => {
+    // CSV形式でダウンロード
+    const csvContent = `物件名,日付,カテゴリ,金額\n${expense.property_name},${expense.date},${expense.category},${expense.amount}`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `支出_${expense.property_name}_${expense.date}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleAddProperty = async () => {
+    if (newProperty.name && newProperty.roomNo && newProperty.tenantName && newProperty.amount && newProperty.date) {
+      const amountValue = parseInt(newProperty.amount);
+      if (isNaN(amountValue) || amountValue <= 0) {
+        alert('金額を正しく入力してください');
+        return;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(newProperty.date)) {
+        alert('日付を正しい形式で入力してください（例: 2024-07-15）');
+        return;
+      }
+      try {
+        // 1. 物件名が未登録ならpropertiesにinsert
+        let propertyId: number | null = null;
+        let property = properties.find(p => p.name === newProperty.name);
+        if (!property) {
+          const { data: propData, error: propError } = await supabase
+          .from('properties')
+            .insert([{ name: newProperty.name, type: 'apartment', location: '未設定', address: '未設定' }])
+            .select('*');
+          if (propError || !propData || !propData[0]) {
+          alert('物件の追加に失敗しました。');
+          return;
+        }
+          propertyId = propData[0].id;
+          await fetchProperties(); // 物件リストを更新
+        } else {
+          propertyId = property.id;
+        }
+        // 2. 支出（家賃）をexpensesにinsert
+        const expenseData = {
+          property_id: propertyId,
+          property_name: newProperty.name,
+          date: newProperty.date, // YYYY-MM-DD形式をそのまま使用
+          category: newProperty.category || '家賃',
+          amount: amountValue,
+          room_no: newProperty.roomNo,
+          tenant_name: newProperty.tenantName,
+        };
+        const { data: expData, error: expError } = await supabase
+          .from('expenses')
+          .insert([expenseData])
+          .select();
+        if (expError) {
+          alert('支出の追加に失敗しました。');
+          return;
+        }
+        if (expData && expData[0]) {
+          setExpenses(prev => [expData[0], ...prev]);
+        }
+        // フォームをリセット
+        setNewProperty({
+          name: '',
+          type: '',
+          units: '',
+          occupiedUnits: '',
+          monthlyIncome: '',
+          yearlyIncome: '',
+          expenses: '',
+          location: '',
+          address: '',
+          buildYear: '',
+          structure: '',
+          totalFloors: '',
+          date: '',
+          roomNo: '',
+          tenantName: '',
+          amount: '',
+          category: '家賃',
+        });
+        setIsAddPropertyDialogOpen(false);
+      } catch (error) {
+        alert('追加に失敗しました。');
+      }
     }
   };
 
@@ -321,575 +581,749 @@ export function ExpenseTracker({ properties }: ExpenseTrackerProps) {
 
   const clearFilters = () => {
     setSelectedProperties([]);
-    setSelectedCategories([]);
   };
 
   const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const monthlyAverage = totalExpenses / 10;
-  const pendingExpenses = filteredExpenses.filter(e => e.status === 'pending');
-  const paidExpenses = filteredExpenses.filter(e => e.status === 'paid');
+  const totalExpenseCount = filteredExpenses.length;
+
+  // 選択中の物件・月の契約者ごと集計
+  const selectedDetails = (() => {
+    if (!selected) return [];
+    return rentExpenses
+      .filter(exp => exp.property_id === selected.propertyId && exp.date.slice(0, 7) === selected.yearMonth)
+      .reduce((acc, exp) => {
+        const key = `${exp.room_no || ''}_${exp.tenant_name || ''}`;
+        if (!acc[key]) {
+          acc[key] = {
+            room_no: exp.room_no || '',
+            tenant_name: exp.tenant_name || '',
+            total: 0,
+          };
+        }
+        acc[key].total += exp.amount || 0;
+        return acc;
+      }, {} as Record<string, { room_no: string; tenant_name: string; total: number }>);
+  })();
+
+  // 契約者関連の関数
+  const handleAddTenant = async () => {
+    if (!selected || !newTenant.roomNo || !newTenant.tenantName || !newTenant.amount || !newTenant.date) {
+      alert('全ての項目を入力してください。');
+      return;
+    }
+
+    try {
+      const property = properties.find(p => p.id === selected.propertyId);
+      const expenseData = {
+        property_id: selected.propertyId,
+        property_name: property?.name || '',
+        date: newTenant.date,
+        category: '家賃',
+        amount: parseInt(newTenant.amount),
+        room_no: newTenant.roomNo,
+        tenant_name: newTenant.tenantName,
+      };
+
+      const { data, error } = await supabase
+        .from('expenses')
+        .insert([expenseData])
+        .select();
+
+      if (error) {
+        alert('契約者の追加に失敗しました。');
+        return;
+      }
+
+      if (data && data[0]) {
+        setExpenses(prev => [data[0], ...prev]);
+      }
+
+      setNewTenant({
+        roomNo: '',
+        tenantName: '',
+        amount: '',
+        date: selected.yearMonth + '-15',
+      });
+      setIsTenantModalOpen(false);
+      alert('契約者を追加しました。');
+    } catch (error) {
+      alert('契約者の追加に失敗しました。');
+    }
+  };
+
+  const handleEditTenant = (tenant: any) => {
+    setEditingTenant(tenant);
+    setNewTenant({
+      roomNo: tenant.room_no,
+      tenantName: tenant.tenant_name,
+      amount: tenant.total.toString(),
+      date: selected?.yearMonth + '-15',
+    });
+    setIsTenantModalOpen(true);
+  };
+
+  const handleUpdateTenant = async () => {
+    if (!editingTenant || !newTenant.roomNo || !newTenant.tenantName || !newTenant.amount) {
+      alert('全ての項目を入力してください。');
+      return;
+    }
+
+    try {
+      // 該当する契約者の支出レコードを更新
+      const { error } = await supabase
+        .from('expenses')
+        .update({
+          room_no: newTenant.roomNo,
+          tenant_name: newTenant.tenantName,
+          amount: parseInt(newTenant.amount),
+        })
+        .eq('property_id', selected?.propertyId)
+        .eq('room_no', editingTenant.room_no)
+        .eq('tenant_name', editingTenant.tenant_name)
+        .eq('category', '家賃');
+
+      if (error) {
+        alert('契約者の更新に失敗しました。');
+        return;
+      }
+
+      // フロントエンドの状態を更新
+      setExpenses(prev => prev.map(exp => {
+        if (exp.property_id === selected?.propertyId && 
+            exp.room_no === editingTenant.room_no && 
+            exp.tenant_name === editingTenant.tenant_name &&
+            exp.category === '家賃') {
+          return {
+            ...exp,
+            room_no: newTenant.roomNo,
+            tenant_name: newTenant.tenantName,
+            amount: parseInt(newTenant.amount),
+          };
+        }
+        return exp;
+      }));
+
+      setNewTenant({
+        roomNo: '',
+        tenantName: '',
+        amount: '',
+        date: selected?.yearMonth + '-15',
+      });
+      setEditingTenant(null);
+      setIsTenantModalOpen(false);
+      alert('契約者を更新しました。');
+    } catch (error) {
+      alert('契約者の更新に失敗しました。');
+    }
+  };
+
+  const handleDeleteTenant = async (tenant: any) => {
+    if (!confirm(`契約者「${tenant.tenant_name}」を削除しますか？`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('property_id', selected?.propertyId)
+        .eq('room_no', tenant.room_no)
+        .eq('tenant_name', tenant.tenant_name)
+        .eq('category', '家賃');
+
+      if (error) {
+        alert('契約者の削除に失敗しました。');
+        return;
+      }
+
+      // フロントエンドの状態を更新
+      setExpenses(prev => prev.filter(exp => 
+        !(exp.property_id === selected?.propertyId && 
+          exp.room_no === tenant.room_no && 
+          exp.tenant_name === tenant.tenant_name &&
+          exp.category === '家賃')
+      ));
+
+      alert('契約者を削除しました。');
+    } catch (error) {
+      alert('契約者の削除に失敗しました。');
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* フィルターセクション */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2 text-blue-800">
-            <Filter className="h-5 w-5" />
-            <span>フィルター機能</span>
-          </CardTitle>
-          <CardDescription className="text-blue-700">
-            特定の物件やカテゴリのデータだけを表示できます
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <Label className="text-base font-medium mb-3 block">物件で絞り込み</Label>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {properties.map((property) => (
-                  <div key={property.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`property-filter-${property.id}`}
-                      checked={selectedProperties.includes(property.id)}
-                      onCheckedChange={() => handlePropertyFilter(property.id)}
-                    />
-                    <Label htmlFor={`property-filter-${property.id}`} className="text-sm">
-                      {property.name}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-base font-medium mb-3 block">カテゴリで絞り込み</Label>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {categories.map((category) => (
-                  <div key={category} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`category-filter-${category}`}
-                      checked={selectedCategories.includes(category)}
-                      onCheckedChange={() => handleCategoryFilter(category)}
-                    />
-                    <Label htmlFor={`category-filter-${category}`} className="text-sm">
-                      {category}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mt-6">
-            <div className="flex flex-wrap gap-2">
-              {selectedProperties.map(propertyId => {
-                const property = properties.find(p => p.id === propertyId);
-                return property ? (
-                  <Badge key={propertyId} variant="outline" className="bg-blue-50 text-blue-700">
-                    {property.name}
-                    <X 
-                      className="h-3 w-3 ml-1 cursor-pointer" 
-                      onClick={() => handlePropertyFilter(propertyId)}
-                    />
-                  </Badge>
-                ) : null;
-              })}
-              {selectedCategories.map(category => (
-                <Badge key={category} variant="outline" className="bg-purple-50 text-purple-700">
-                  {category}
-                  <X 
-                    className="h-3 w-3 ml-1 cursor-pointer" 
-                    onClick={() => handleCategoryFilter(category)}
-                  />
-                </Badge>
-              ))}
-            </div>
-            {(selectedProperties.length > 0 || selectedCategories.length > 0) && (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4 mr-2" />
-                フィルターをクリア
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">総支出額</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">¥{totalExpenses.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {selectedProperties.length > 0 || selectedCategories.length > 0 ? 'フィルター適用済み' : '今年度累計'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">月平均支出</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">¥{Math.round(monthlyAverage).toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">10ヶ月平均</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">支払済み</CardTitle>
-            <Receipt className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{paidExpenses.length}</div>
-            <p className="text-xs text-muted-foreground">項目</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">未払い</CardTitle>
-            <TrendingUp className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">{pendingExpenses.length}</div>
-            <p className="text-xs text-muted-foreground">¥{pendingExpenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString()}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Monthly Expense Chart */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>月別支出推移</CardTitle>
-                <CardDescription>
-                  {selectedCategories.length > 0 ? `選択カテゴリ: ${selectedCategories.join(', ')}` : 'カテゴリ別の支出状況'}
-                </CardDescription>
-              </div>
-              <div className="flex space-x-2">
-                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      支出を追加
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[500px]">
-                    <DialogHeader>
-                      <DialogTitle>新しい支出を登録</DialogTitle>
-                      <DialogDescription>
-                        支出の詳細情報を入力してください。
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="property" className="text-right">物件</Label>
-                        <Select value={newExpense.propertyId} onValueChange={(value) => setNewExpense({...newExpense, propertyId: value})}>
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="物件を選択" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {properties.map((property) => (
-                              <SelectItem key={property.id} value={property.id.toString()}>
-                                {property.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="date" className="text-right">日付</Label>
+    <div className="space-y-8">
+      {/* 収入追加ダイアログ（物件追加と統合） */}
+      <Dialog open={isAddPropertyDialogOpen} onOpenChange={setIsAddPropertyDialogOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              収入を追加
+            </DialogTitle>
+                    <DialogDescription>
+              新しい収入を登録します。物件が未登録の場合は同時に登録されます。
+                    </DialogDescription>
+                  </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="property-name">物件名</Label>
                         <Input
-                          id="date"
-                          type="date"
-                          className="col-span-3"
-                          value={newExpense.date}
-                          onChange={(e) => setNewExpense({...newExpense, date: e.target.value})}
-                        />
+                id="property-name" 
+                value={newProperty.name} 
+                onChange={e => setNewProperty({ ...newProperty, name: e.target.value })} 
+                placeholder="例: タカハシマンション101"
+              />
                       </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="category" className="text-right">カテゴリ</Label>
-                        <Select value={newExpense.category} onValueChange={(value) => setNewExpense({...newExpense, category: value})}>
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="カテゴリを選択" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => (
-                              <SelectItem key={category} value={category}>
-                                {category}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="amount" className="text-right">金額</Label>
-                        <Input
-                          id="amount"
-                          type="number"
-                          placeholder="金額を入力"
-                          className="col-span-3"
-                          value={newExpense.amount}
-                          onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="vendor" className="text-right">業者</Label>
-                        <Input
-                          id="vendor"
-                          placeholder="業者名"
-                          className="col-span-3"
-                          value={newExpense.vendor}
-                          onChange={(e) => setNewExpense({...newExpense, vendor: e.target.value})}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="paymentMethod" className="text-right">支払方法</Label>
-                        <Select value={newExpense.paymentMethod} onValueChange={(value) => setNewExpense({...newExpense, paymentMethod: value})}>
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="支払方法を選択" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {paymentMethods.map((method) => (
-                              <SelectItem key={method} value={method}>
-                                {method}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="description" className="text-right">詳細</Label>
-                        <Textarea
-                          id="description"
-                          placeholder="支出の詳細"
-                          className="col-span-3"
-                          value={newExpense.description}
-                          onChange={(e) => setNewExpense({...newExpense, description: e.target.value})}
-                        />
-                      </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="property-room">部屋No.</Label>
+                      <Input
+                id="property-room" 
+                value={newProperty.roomNo} 
+                onChange={e => setNewProperty({ ...newProperty, roomNo: e.target.value })} 
+                placeholder="例: 101"
+                      />
                     </div>
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                        キャンセル
-                      </Button>
-                      <Button onClick={handleAddExpense}>
-                        追加
-                      </Button>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="property-tenant">契約者名</Label>
+                      <Input
+                id="property-tenant" 
+                value={newProperty.tenantName} 
+                onChange={e => setNewProperty({ ...newProperty, tenantName: e.target.value })} 
+                placeholder="例: 田中太郎"
+                      />
                     </div>
-                  </DialogContent>
-                </Dialog>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="property-amount">収入金額</Label>
+                      <Input
+                id="property-amount" 
+                type="number" 
+                value={newProperty.amount} 
+                onChange={e => setNewProperty({ ...newProperty, amount: e.target.value })} 
+                placeholder="例: 80000"
+                      />
+                    </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="property-category">収入カテゴリ</Label>
+              <Select value={newProperty.category || '家賃'} onValueChange={value => setNewProperty({ ...newProperty, category: value })}>
+                <SelectTrigger id="property-category">
+                  <SelectValue placeholder="選択してください" />
+                        </SelectTrigger>
+                        <SelectContent>
+                  <SelectItem value="家賃">家賃</SelectItem>
+                  <SelectItem value="共益費">共益費</SelectItem>
+                  <SelectItem value="駐車場">駐車場</SelectItem>
+                  <SelectItem value="更新料">更新料</SelectItem>
+                  <SelectItem value="敷金">敷金</SelectItem>
+                  <SelectItem value="礼金">礼金</SelectItem>
+                  <SelectItem value="その他">その他</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="property-date">収入日</Label>
+              <Input 
+                id="property-date" 
+                type="date" 
+                value={newProperty.date} 
+                onChange={e => setNewProperty({ ...newProperty, date: e.target.value })} 
+                lang="ja"
+                      />
+                    </div>
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button variant="outline" onClick={() => setIsAddPropertyDialogOpen(false)}>キャンセル</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow" onClick={handleAddProperty}>追加</Button>
+                  </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
-                <Dialog open={isAddPropertyDialogOpen} onOpenChange={setIsAddPropertyDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline">
-                      <Building2 className="h-4 w-4 mr-2" />
-                      物件を追加
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>新しい物件を登録</DialogTitle>
-                      <DialogDescription>
-                        物件の詳細情報を入力してください。
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="propertyName" className="text-right">物件名</Label>
-                        <Input
-                          id="propertyName"
-                          placeholder="高橋ホーム○○"
-                          className="col-span-3"
-                          value={newProperty.name}
-                          onChange={(e) => setNewProperty({...newProperty, name: e.target.value})}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="propertyType" className="text-right">物件タイプ</Label>
-                        <Select value={newProperty.type} onValueChange={(value) => setNewProperty({...newProperty, type: value})}>
-                          <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="物件タイプを選択" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {propertyTypes.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="units" className="text-right">総戸数</Label>
-                          <Input
-                            id="units"
-                            type="number"
-                            placeholder="戸数"
-                            className="col-span-3"
-                            value={newProperty.units}
-                            onChange={(e) => setNewProperty({...newProperty, units: e.target.value})}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="occupiedUnits" className="text-right">入居戸数</Label>
-                          <Input
-                            id="occupiedUnits"
-                            type="number"
-                            placeholder="入居戸数"
-                            className="col-span-3"
-                            value={newProperty.occupiedUnits}
-                            onChange={(e) => setNewProperty({...newProperty, occupiedUnits: e.target.value})}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="monthlyIncome" className="text-right">月収入</Label>
-                          <Input
-                            id="monthlyIncome"
-                            type="number"
-                            placeholder="月収入"
-                            className="col-span-3"
-                            value={newProperty.monthlyIncome}
-                            onChange={(e) => setNewProperty({...newProperty, monthlyIncome: e.target.value})}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="yearlyIncome" className="text-right">年収入</Label>
-                          <Input
-                            id="yearlyIncome"
-                            type="number"
-                            placeholder="年収入（自動計算）"
-                            className="col-span-3"
-                            value={newProperty.yearlyIncome || (parseInt(newProperty.monthlyIncome) * 12 || '')}
-                            onChange={(e) => setNewProperty({...newProperty, yearlyIncome: e.target.value})}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="expenses" className="text-right">年間経費</Label>
-                        <Input
-                          id="expenses"
-                          type="number"
-                          placeholder="年間経費"
-                          className="col-span-3"
-                          value={newProperty.expenses}
-                          onChange={(e) => setNewProperty({...newProperty, expenses: e.target.value})}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="location" className="text-right">所在地</Label>
-                        <Input
-                          id="location"
-                          placeholder="福井市○○"
-                          className="col-span-3"
-                          value={newProperty.location}
-                          onChange={(e) => setNewProperty({...newProperty, location: e.target.value})}
-                        />
-                      </div>
-                      <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="address" className="text-right">住所</Label>
-                        <Input
-                          id="address"
-                          placeholder="福井県福井市○○"
-                          className="col-span-3"
-                          value={newProperty.address}
-                          onChange={(e) => setNewProperty({...newProperty, address: e.target.value})}
-                        />
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="buildYear" className="text-right">築年</Label>
-                          <Input
-                            id="buildYear"
-                            type="number"
-                            placeholder="2020"
-                            className="col-span-3"
-                            value={newProperty.buildYear}
-                            onChange={(e) => setNewProperty({...newProperty, buildYear: e.target.value})}
-                          />
-                        </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="structure" className="text-right">構造</Label>
-                          <Select value={newProperty.structure} onValueChange={(value) => setNewProperty({...newProperty, structure: value})}>
-                            <SelectTrigger className="col-span-3">
-                              <SelectValue placeholder="構造" />
+      {/* 支出追加ダイアログ */}
+                  <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              支出を追加
+            </DialogTitle>
+                        <DialogDescription>
+              新しい支出を登録します
+                        </DialogDescription>
+                      </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expense-property">物件名</Label>
+              <Select value={newExpense.propertyName} onValueChange={value => setNewExpense({ ...newExpense, propertyName: value })}>
+                <SelectTrigger id="expense-property">
+                  <SelectValue placeholder="選択してください" />
                             </SelectTrigger>
                             <SelectContent>
-                              {structures.map((structure) => (
-                                <SelectItem key={structure} value={structure}>
-                                  {structure}
-                                </SelectItem>
+                  {properties.map(property => (
+                    <SelectItem key={property.id} value={property.name}>{property.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                          <Label htmlFor="totalFloors" className="text-right">階数</Label>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expense-room">部屋No.</Label>
+              <Input id="expense-room" value={newExpense.roomNo || ''} onChange={e => setNewExpense({ ...newExpense, roomNo: e.target.value })} />
+                        </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expense-tenant">契約者名</Label>
+              <Input id="expense-tenant" value={newExpense.tenantName || ''} onChange={e => setNewExpense({ ...newExpense, tenantName: e.target.value })} />
+                        </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expense-amount">金額</Label>
+              <Input id="expense-amount" type="number" value={newExpense.amount || ''} onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expense-date">日付</Label>
+              <Input id="expense-date" type="date" lang="ja" value={newExpense.date || ''} onChange={e => setNewExpense({ ...newExpense, date: e.target.value })} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="expense-category">費用項目</Label>
+              <Select value={newExpense.category} onValueChange={value => setNewExpense({ ...newExpense, category: value })}>
+                <SelectTrigger id="expense-category">
+                  <SelectValue placeholder="選択してください" />
+                            </SelectTrigger>
+                            <SelectContent>
+                  <SelectItem value="家賃">家賃</SelectItem>
+                  <SelectItem value="共益費">共益費</SelectItem>
+                  <SelectItem value="駐車場">駐車場</SelectItem>
+                  <SelectItem value="更新料">更新料</SelectItem>
+                  <SelectItem value="敷金">敷金</SelectItem>
+                  <SelectItem value="礼金">礼金</SelectItem>
+                  <SelectItem value="その他">その他</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>キャンセル</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow" onClick={handleAddExpense}>追加</Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+      {/* 支出編集ダイアログ */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              支出を編集
+            </DialogTitle>
+                        <DialogDescription>
+              支出情報を編集します
+                        </DialogDescription>
+                      </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-expense-property">物件名</Label>
+              <Select value={newExpense.propertyName} onValueChange={value => setNewExpense({ ...newExpense, propertyName: value })}>
+                <SelectTrigger id="edit-expense-property">
+                  <SelectValue placeholder="選択してください" />
+                            </SelectTrigger>
+                            <SelectContent>
+                  {properties.map(property => (
+                    <SelectItem key={property.id} value={property.name}>{property.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-expense-room">部屋No.</Label>
+              <Input id="edit-expense-room" value={newExpense.roomNo || ''} onChange={e => setNewExpense({ ...newExpense, roomNo: e.target.value })} />
+                          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-expense-tenant">契約者名</Label>
+              <Input id="edit-expense-tenant" value={newExpense.tenantName || ''} onChange={e => setNewExpense({ ...newExpense, tenantName: e.target.value })} />
+                          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-expense-amount">金額</Label>
+              <Input id="edit-expense-amount" type="number" value={newExpense.amount || ''} onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })} />
+                        </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-expense-date">日付</Label>
+              <Input id="edit-expense-date" type="date" lang="ja" value={newExpense.date || ''} onChange={e => setNewExpense({ ...newExpense, date: e.target.value })} />
+                          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-expense-category">費用項目</Label>
+              <Select value={newExpense.category} onValueChange={value => setNewExpense({ ...newExpense, category: value })}>
+                <SelectTrigger id="edit-expense-category">
+                  <SelectValue placeholder="選択してください" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="家賃">家賃</SelectItem>
+                  <SelectItem value="共益費">共益費</SelectItem>
+                  <SelectItem value="駐車場">駐車場</SelectItem>
+                  <SelectItem value="更新料">更新料</SelectItem>
+                  <SelectItem value="敷金">敷金</SelectItem>
+                  <SelectItem value="礼金">礼金</SelectItem>
+                  <SelectItem value="その他">その他</SelectItem>
+                </SelectContent>
+              </Select>
+                          </div>
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>キャンセル</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow" onClick={handleUpdateExpense}>更新</Button>
+                        </div>
+                        </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 契約者内訳モーダル */}
+      <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-800 flex items-center gap-3">
+              <Building2 className="h-5 w-5 text-green-600" />
+              {(() => {
+                const prop = properties.find(p => p.id === selected?.propertyId);
+                return `${prop?.name || ''} - ${selected?.yearMonth} の契約者内訳`;
+              })()}
+            </DialogTitle>
+            <DialogDescription>
+              契約者ごとの詳細な収入内訳
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-sm text-gray-600">
+              契約者数: {selected && Object.values(selectedDetails).length}名
+            </div>
+            <Button 
+              onClick={() => {
+                setNewTenant({
+                  roomNo: '',
+                  tenantName: '',
+                  amount: '',
+                  date: selected?.yearMonth + '-15',
+                });
+                setEditingTenant(null);
+                setIsTenantModalOpen(true);
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              契約者追加
+            </Button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">部屋No.</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">契約者</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">合計</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {selected && Object.values(selectedDetails).map((row, i) => (
+                    <tr key={row.room_no + row.tenant_name} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {row.room_no}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {row.tenant_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600 text-right">
+                        {row.total !== null ? `¥${row.total.toLocaleString()}` : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditTenant(row)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteTenant(row)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 契約者追加・編集モーダル */}
+      <Dialog open={isTenantModalOpen} onOpenChange={setIsTenantModalOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editingTenant ? <Edit className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              {editingTenant ? '契約者を編集' : '契約者を追加'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingTenant ? '契約者情報を編集します' : '新しい契約者を追加します'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tenant-room">部屋No.</Label>
                           <Input
-                            id="totalFloors"
-                            type="number"
-                            placeholder="3"
-                            className="col-span-3"
-                            value={newProperty.totalFloors}
-                            onChange={(e) => setNewProperty({...newProperty, totalFloors: e.target.value})}
+                id="tenant-room" 
+                value={newTenant.roomNo} 
+                onChange={e => setNewTenant({ ...newTenant, roomNo: e.target.value })} 
+                placeholder="例: 101"
                           />
+                        </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tenant-name">契約者名</Label>
+                          <Input
+                id="tenant-name" 
+                value={newTenant.tenantName} 
+                onChange={e => setNewTenant({ ...newTenant, tenantName: e.target.value })} 
+                placeholder="例: 田中太郎"
+                          />
+                        </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tenant-amount">家賃金額</Label>
+                            <Input
+                id="tenant-amount" 
+                              type="number"
+                value={newTenant.amount} 
+                onChange={e => setNewTenant({ ...newTenant, amount: e.target.value })} 
+                placeholder="例: 80000"
+                            />
+                          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tenant-date">収入日</Label>
+                            <Input
+                id="tenant-date" 
+                type="date" 
+                value={newTenant.date} 
+                onChange={e => setNewTenant({ ...newTenant, date: e.target.value })} 
+                lang="ja"
+                            />
+                          </div>
+            <div className="flex justify-end space-x-2 mt-4">
+              <Button variant="outline" onClick={() => {
+                setIsTenantModalOpen(false);
+                setEditingTenant(null);
+                setNewTenant({
+                  roomNo: '',
+                  tenantName: '',
+                  amount: '',
+                  date: '',
+                });
+              }}>
+                          キャンセル
+                        </Button>
+              <Button 
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-bold shadow" 
+                onClick={editingTenant ? handleUpdateTenant : handleAddTenant}
+              >
+                {editingTenant ? '更新' : '追加'}
+                        </Button>
+            </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+      {/* CRMライクな収入管理ダッシュボード */}
+      <div className="space-y-6">
+        {/* ヘッダーセクション */}
+        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">物件収入管理</h1>
+              <p className="text-blue-100 text-lg">物件別の収入を一元管理</p>
+                </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-2xl font-bold">{propertyMonthGroups.length}</div>
+                <div className="text-blue-100 text-sm">収入レコード</div>
+              </div>
+              <Button 
+                onClick={() => setIsAddPropertyDialogOpen(true)}
+                className="bg-white text-blue-600 hover:bg-blue-50 font-semibold px-6 py-3 rounded-xl shadow-lg"
+              >
+                <Plus className="h-5 w-5 mr-2" />
+                新規物件追加
+              </Button>
+                      </div>
+                  </div>
+                </div>
+
+        {/* フィルターセクション */}
+        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <div className="flex items-center gap-4 mb-6">
+            <Filter className="h-6 w-6 text-gray-600" />
+            <h2 className="text-xl font-semibold text-gray-800">フィルター</h2>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={clearFilters}
+              className="text-gray-500 hover:text-gray-700 ml-auto"
+            >
+              <X className="h-4 w-4 mr-2" />
+              フィルタークリア
+            </Button>
+                      </div>
+          
+          {/* 物件フィルター */}
+          <div>
+            <Label className="text-sm font-medium text-gray-700 mb-3 block">物件で絞り込み</Label>
+            <div className="flex flex-wrap gap-3">
+              {properties.map(property => (
+                <Badge
+                  key={property.id}
+                  variant={selectedProperties.includes(property.id) ? "default" : "outline"}
+                  className={`cursor-pointer transition-all px-4 py-2 text-sm font-medium ${
+                    selectedProperties.includes(property.id)
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300 hover:border-blue-300'
+                  }`}
+                  onClick={() => handlePropertyFilter(property.id)}
+                >
+                  <Building2 className="h-4 w-4 mr-2" />
+                  {property.name}
+                </Badge>
+              ))}
+                </div>
+              </div>
+          </div>
+
+        {/* 収入一覧 */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="p-6 border-b border-gray-100">
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-3">
+              <Receipt className="h-6 w-6 text-blue-600" />
+              収入一覧
+              <Badge variant="secondary" className="ml-2">
+                {propertyMonthGroups.length}件
+              </Badge>
+            </h2>
+                                </div>
+          
+          <div className="p-6">
+            {propertyMonthGroups.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Receipt className="h-10 w-10 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">収入データがありません</h3>
+                <p className="text-gray-500 mb-6">新しい収入を追加して管理を始めましょう</p>
+                <Button 
+                  onClick={() => setIsAddPropertyDialogOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  最初の収入を追加
+                </Button>
+                  </div>
+            ) : (
+              <div className="grid gap-6">
+                {propertyMonthGroups.map((row, index) => (
+                  <div 
+                    key={row.propertyId + row.yearMonth}
+                    className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-6 border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                          <Building2 className="h-6 w-6 text-white" />
+                            </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900 text-lg">{row.propertyName}</h3>
+                          <div className="flex items-center gap-4 text-sm text-gray-600">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
+                              {row.yearMonth}
+                        </span>
+                            <Badge variant="outline" className="text-xs">
+                              収入データ
+                            </Badge>
+                      </div>
+                    </div>
+                  </div>
+                      <div className="text-right">
+                        <div className="text-3xl font-bold text-green-600 mb-1">
+                          ¥{row.total.toLocaleString()}
+                </div>
+                        <div className="text-sm text-gray-500">月の収入</div>
+          </div>
+                  </div>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                      <div className="flex items-center gap-6 text-sm text-gray-600">
+                        <span className="flex items-center gap-2">
+                          <Receipt className="h-4 w-4" />
+                          収入管理
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          家賃収入
+                          </span>
+                        </div>
+                      <div className="flex items-center gap-2">
+                          <Button 
+                            size="sm" 
+                          variant="outline"
+                          onClick={() => setSelected({ propertyId: row.propertyId, yearMonth: row.yearMonth })}
+                          className="border-blue-200 text-blue-700 hover:bg-blue-50 font-medium"
+                        >
+                          <List className="h-4 w-4 mr-2" />
+                          契約者詳細
+                          </Button>
+                          <Button 
+                            size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            const expense = expenses.find(exp => 
+                              exp.property_id === row.propertyId && 
+                              exp.category === '家賃' &&
+                              exp.date.slice(0, 7) === row.yearMonth
+                            );
+                            if (expense) handleEditExpense(expense);
+                          }}
+                          className="border-green-200 text-green-700 hover:bg-green-50 font-medium"
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          編集
+                          </Button>
+                          <Button 
+                            size="sm" 
+                          variant="outline"
+                            onClick={() => {
+                            const expense = expenses.find(exp => 
+                              exp.property_id === row.propertyId && 
+                              exp.category === '家賃' &&
+                              exp.date.slice(0, 7) === row.yearMonth
+                            );
+                            if (expense) handleDeleteExpense(expense.id);
+                          }}
+                          className="border-red-200 text-red-700 hover:bg-red-50 font-medium"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          削除
+                          </Button>
                         </div>
                       </div>
                     </div>
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="outline" onClick={() => setIsAddPropertyDialogOpen(false)}>
-                        キャンセル
-                      </Button>
-                      <Button onClick={handleAddProperty}>
-                        追加
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                ))}
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={getFilteredMonthlyData()}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip 
-                  formatter={(value: number) => [`¥${value.toLocaleString()}`, '']}
-                />
-                <Bar dataKey="修繕費" stackId="a" fill="#EF4444" />
-                <Bar dataKey="清掃費" stackId="a" fill="#F59E0B" />
-                <Bar dataKey="保守点検" stackId="a" fill="#3B82F6" />
-                <Bar dataKey="光熱費" stackId="a" fill="#10B981" />
-                <Bar dataKey="その他" stackId="a" fill="#8B5CF6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Category Analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle>カテゴリ別支出分析</CardTitle>
-            <CardDescription>
-              {selectedCategories.length > 0 ? '選択されたカテゴリの構成比' : '年間支出の構成比'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
-              <PieChart>
-                <Pie
-                  data={getCategoryAnalysis()}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ category, percentage }) => `${category} ${percentage}%`}
-                  outerRadius={120}
-                  fill="#8884d8"
-                  dataKey="amount"
-                >
-                  {getCategoryAnalysis().map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 手動追加した物件データのグラフ */}
-      {filteredPropertyData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>追加物件の収支グラフ</CardTitle>
-            <CardDescription>手動で追加された物件の収支状況</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={filteredPropertyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip formatter={(value: number) => `¥${value.toLocaleString()}`} />
-                <Bar dataKey="yearlyIncome" fill="#3B82F6" name="年間収入" />
-                <Bar dataKey="expenses" fill="#EF4444" name="年間経費" />
-                <Bar dataKey="netIncome" fill="#10B981" name="純利益" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Expenses List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>支出一覧</CardTitle>
-          <CardDescription>
-            {selectedProperties.length > 0 || selectedCategories.length > 0 
-              ? 'フィルター適用済みの支出履歴' 
-              : '最近の支出履歴'
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {filteredExpenses.map((expense) => (
-              <div key={expense.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <Badge variant="outline">{expense.category}</Badge>
-                    <Badge variant="secondary">{expense.propertyName}</Badge>
-                    <Badge 
-                      variant={expense.status === 'paid' ? 'default' : expense.status === 'pending' ? 'secondary' : 'destructive'}
-                    >
-                      {expense.status === 'paid' ? '支払済' : expense.status === 'pending' ? '未払い' : '期限切れ'}
-                    </Badge>
-                    {expense.paymentMethod && (
-                      <Badge variant="outline" className="text-xs">
-                        {expense.paymentMethod}
-                      </Badge>
-                    )}
-                  </div>
-                  <h4 className="font-semibold">{expense.description}</h4>
-                  <p className="text-sm text-gray-600">
-                    {expense.vendor} • {expense.date}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold">¥{expense.amount.toLocaleString()}</p>
-                  <div className="flex space-x-2 mt-2">
-                    <Button variant="outline" size="sm">
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Upload className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+            )}
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+                  </div>
     </div>
   );
 }

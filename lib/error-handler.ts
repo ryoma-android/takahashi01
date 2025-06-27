@@ -6,6 +6,7 @@ export class GlobalErrorHandler {
   private isReloading = false;
   private retryCount = 0;
   private maxRetries = 3;
+  private errorLog: string[] = [];
 
   private constructor() {
     this.setupErrorHandling();
@@ -31,17 +32,58 @@ export class GlobalErrorHandler {
 
     // Next.js の chunk load error を検知
     if (typeof window !== 'undefined') {
-      const originalFetch = window.fetch;
-      window.fetch = async (...args) => {
-        try {
-          return await originalFetch(...args);
-        } catch (error: any) {
-          // chunk ファイルの読み込みエラーを検知
-          if (error.message && error.message.includes('Loading chunk') && error.message.includes('failed')) {
-            this.handleChunkLoadError(error);
-          }
-          throw error;
+      this.interceptFetch();
+      this.interceptScriptLoading();
+      this.interceptNextJsErrors();
+    }
+  }
+
+  private interceptFetch() {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      try {
+        return await originalFetch(...args);
+      } catch (error: any) {
+        // chunk ファイルの読み込みエラーを検知
+        if (error.message && error.message.includes('Loading chunk') && error.message.includes('failed')) {
+          this.handleChunkLoadError(error);
         }
+        throw error;
+      }
+    };
+  }
+
+  private interceptScriptLoading() {
+    // スクリプトタグの読み込みエラーを監視
+    const originalCreateElement = document.createElement;
+    document.createElement = function(tagName: string) {
+      const element = originalCreateElement.call(document, tagName);
+      if (tagName.toLowerCase() === 'script') {
+        element.addEventListener('error', (event) => {
+          const target = event.target as HTMLScriptElement;
+          if (target.src && target.src.includes('_next/static/chunks/')) {
+            console.warn('Script loading error detected:', target.src);
+            GlobalErrorHandler.getInstance().handleChunkLoadError({
+              message: `Failed to load script: ${target.src}`,
+              src: target.src
+            });
+          }
+        });
+      }
+      return element;
+    };
+  }
+
+  private interceptNextJsErrors() {
+    // Next.jsの内部エラーハンドリングをオーバーライド
+    if (typeof window !== 'undefined' && (window as any).__NEXT_DATA__) {
+      const originalConsoleError = console.error;
+      console.error = (...args) => {
+        const message = args.join(' ');
+        if (message.includes('Loading chunk') || message.includes('ChunkLoadError')) {
+          this.handleChunkLoadError({ message });
+        }
+        originalConsoleError.apply(console, args);
       };
     }
   }
@@ -56,6 +98,7 @@ export class GlobalErrorHandler {
 
     // その他のエラーは通常通り処理
     console.error('Global error caught:', error);
+    this.errorLog.push(`${new Date().toISOString()}: ${error.message || error}`);
   }
 
   private async handleChunkLoadError(error: any) {
@@ -65,6 +108,7 @@ export class GlobalErrorHandler {
     console.warn('Retry count:', this.retryCount);
     
     this.retryCount++;
+    this.errorLog.push(`${new Date().toISOString()}: ChunkLoadError - ${error.message}`);
     
     if (this.retryCount <= this.maxRetries) {
       // リトライ回数が上限に達していない場合
@@ -73,7 +117,10 @@ export class GlobalErrorHandler {
       // 軽微なキャッシュクリアを試行
       try {
         await CacheUtils.clearAllCaches();
-        window.location.reload();
+        // 少し待ってからリロード
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       } catch (retryError) {
         console.error('Retry failed:', retryError);
         this.handleFinalChunkLoadError(error);
@@ -129,6 +176,16 @@ export class GlobalErrorHandler {
   public resetRetryCount() {
     this.retryCount = 0;
     this.isReloading = false;
+  }
+
+  // エラーログを取得
+  public getErrorLog() {
+    return [...this.errorLog];
+  }
+
+  // エラーログをクリア
+  public clearErrorLog() {
+    this.errorLog = [];
   }
 }
 

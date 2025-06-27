@@ -147,6 +147,7 @@ const nextConfig = {
         assert: false,
         os: false,
         path: false,
+        encoding: false,
       };
       
       // WebSocket関連のネイティブモジュールを無視
@@ -173,6 +174,14 @@ const nextConfig = {
             },
           },
         };
+
+        // より強力なChunkLoadError対策
+        config.plugins.push(
+          new (require('webpack')).DefinePlugin({
+            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+            'process.env.NEXT_PUBLIC_APP_URL': JSON.stringify(process.env.NEXT_PUBLIC_APP_URL),
+          })
+        );
       }
     }
     return config;
@@ -182,6 +191,34 @@ const nextConfig = {
   generateEtags: false,
   compress: true,
   poweredByHeader: false,
+  // ChunkLoadError対策: より強力な設定
+  experimental: {
+    optimizeCss: true,
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+  },
+  // より強力なキャッシュ無効化
+  headers: async () => {
+    return [
+      {
+        source: '/_next/static/chunks/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, must-revalidate',
+          },
+        ],
+      },
+      {
+        source: '/_next/static/js/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=0, must-revalidate',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = withPWA(nextConfig);

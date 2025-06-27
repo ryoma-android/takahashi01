@@ -38,3 +38,5 @@ venv/
 repo-clean.git/
 venv/
 repo-clean.git/
+
+gcp-vision-key.json

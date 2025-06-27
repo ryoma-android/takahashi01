@@ -96,7 +96,7 @@ export default function TakahashiHomeSystem() {
   // propertiesが変わったらselectedPropertiesも更新
   useEffect(() => {
     setSelectedProperties(validPropertyNames);
-  }, [properties.length]);
+  }, [validPropertyNames]);
 
   // 1. Fetch expenses from the DB
   const [expenses, setExpenses] = useState<Expense[]>([]);

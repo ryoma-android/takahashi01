@@ -3,6 +3,8 @@ const withPWA = require('next-pwa')({
   dest: 'public',           // サービスワーカーやmanifestの出力先
   register: true,           // サービスワーカーの自動登録
   skipWaiting: true,        // 新しいSWが有効化されたら即時反映
+  cleanupOutdatedCaches: true,
+  disable: process.env.NODE_ENV === 'development',
   // 静的エクスポート時の注意: next/imageを使う場合はunoptimized: trueを推奨
   // images: { unoptimized: true }
 });

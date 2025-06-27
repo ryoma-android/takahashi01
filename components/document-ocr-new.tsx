@@ -123,7 +123,7 @@ export function DocumentOCR(props: DocumentOCRProps) {
 
     for (const file of Array.from(files)) {
       let newResult: OCRResult | null = null;
-      
+      let progressInterval: NodeJS.Timeout | null = null;
       try {
         newResult = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -144,11 +144,10 @@ export function DocumentOCR(props: DocumentOCRProps) {
         }
 
         setUploadProgress(0);
-        
-        const progressInterval = setInterval(() => {
+        progressInterval = setInterval(() => {
           setUploadProgress(prev => {
             if (prev >= 90) {
-              clearInterval(progressInterval);
+              if (progressInterval) clearInterval(progressInterval);
               return 90;
             }
             return prev + 10;
@@ -160,7 +159,7 @@ export function DocumentOCR(props: DocumentOCRProps) {
           body: formData,
         });
 
-        clearInterval(progressInterval);
+        if (progressInterval) clearInterval(progressInterval);
         setUploadProgress(100);
 
         if (!response.ok) {
@@ -198,7 +197,6 @@ export function DocumentOCR(props: DocumentOCRProps) {
       } catch (error) {
         console.error('Upload error:', error);
         setError(error instanceof Error ? error.message : 'アップロードに失敗しました');
-        
         if (newResult) {
           setOcrResults(prev => prev.map(item => 
             item.id === newResult!.id 
@@ -206,11 +204,13 @@ export function DocumentOCR(props: DocumentOCRProps) {
               : item
           ));
         }
+      } finally {
+        if (progressInterval) clearInterval(progressInterval);
+        setUploadProgress(0);
       }
     }
 
     setIsUploading(false);
-    setUploadProgress(0);
     event.target.value = '';
   }, [selectedPropertyId, fetchProperties, props]);
 
@@ -342,8 +342,8 @@ export function DocumentOCR(props: DocumentOCRProps) {
   const processingCount = ocrResults.filter(r => r.status === 'processing').length;
   const completedCount = ocrResults.filter(r => r.status === 'completed').length;
   const totalAmount = ocrResults
-    .filter(r => r.status === 'completed' && r.extractedData.contracts)
-    .reduce((sum, r) => sum + (r.extractedData.contracts?.reduce((cSum, c) => cSum + (c.amount || 0), 0) || 0), 0);
+    .filter(r => r.status === 'completed' && typeof r.extractedData.amount === 'number')
+    .reduce((sum, r) => sum + (r.extractedData.amount || 0), 0);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -551,9 +551,9 @@ export function DocumentOCR(props: DocumentOCRProps) {
               <div className="space-y-2">
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>アップロード中...</span>
-                  <span>{uploadProgress}%</span>
+                  <span>{Math.min(Math.max(0, uploadProgress), 100)}%</span>
                 </div>
-                <Progress value={uploadProgress} className="w-full" />
+                <Progress value={Math.min(Math.max(0, uploadProgress), 100)} max={100} className="w-full" />
               </div>
             )}
           </div>
@@ -760,6 +760,12 @@ export function DocumentOCR(props: DocumentOCRProps) {
                           </div>
                         </details>
                       )}
+
+                      {result.previewUrl && (
+                        <a href={result.previewUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">
+                          プレビュー
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>
@@ -784,12 +790,19 @@ export function DocumentOCR(props: DocumentOCRProps) {
           <div className="space-y-6">
             <div>
               <Label htmlFor="property-name">物件名</Label>
-              <Input
-                id="property-name"
+              <Select
                 value={editData.propertyName || ''}
-                onChange={(e) => setEditData(prev => ({ ...prev, propertyName: e.target.value }))}
-                placeholder="物件名を入力"
-              />
+                onValueChange={val => setEditData(prev => ({ ...prev, propertyName: val }))}
+              >
+                <SelectTrigger id="property-name">
+                  <SelectValue placeholder="物件名を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contextProperties.map(prop => (
+                    <SelectItem key={prop.id} value={prop.name}>{prop.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -847,7 +860,7 @@ export function DocumentOCR(props: DocumentOCRProps) {
                         <Input
                           id={`amount-${index}`}
                           type="number"
-                          value={contract.amount || ''}
+                          value={contract.amount ?? ''}
                           onChange={(e) => updateContract(index, 'amount', parseInt(e.target.value) || 0)}
                           placeholder="0"
                         />

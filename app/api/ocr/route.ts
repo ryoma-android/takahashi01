@@ -7,7 +7,7 @@ import { protos } from '@google-cloud/vision';
 export const dynamic = 'force-dynamic';
 
 // Google Cloud Vision API クライアントの初期化
-// GOOGLE_APPLICATION_CREDENTIALS環境変数が設定されている必要があります
+// GCP_VISION_KEY環境変数が設定されている必要があります
 const visionClient = new ImageAnnotatorClient();
 
 // OpenAIクライアントの初期化

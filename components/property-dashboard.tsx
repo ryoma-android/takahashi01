@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -60,7 +60,7 @@ export function PropertyDashboard() {
   const propertyList = properties.map(p => ({ id: p.id, name: p.name }));
 
   // 選択中物件の月ごと収支
-  const monthGroups = (() => {
+  const monthGroups = useMemo(() => {
     if (!selectedPropertyId) return [];
     const filtered = rentExpenses.filter(exp => exp.property_id === selectedPropertyId);
     const map = new Map<string, { yearMonth: string; total: number }>();
@@ -72,10 +72,10 @@ export function PropertyDashboard() {
       map.get(yearMonth)!.total += exp.amount || 0;
     });
     return Array.from(map.values()).sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
-  })();
+  }, [selectedPropertyId, rentExpenses]);
 
   // 年ごと収支
-  const yearGroups = (() => {
+  const yearGroups = useMemo(() => {
     if (!selectedPropertyId) return [];
     const filtered = rentExpenses.filter(exp => exp.property_id === selectedPropertyId);
     const map = new Map<string, { year: string; total: number }>();
@@ -87,11 +87,11 @@ export function PropertyDashboard() {
       map.get(year)!.total += exp.amount || 0;
     });
     return Array.from(map.values()).sort((a, b) => b.year.localeCompare(a.year));
-  })();
+  }, [selectedPropertyId, rentExpenses]);
 
   // 選択中物件・月の契約者ごと集計
-  const selectedDetails = (() => {
-    if (!selectedPropertyId || !selectedYearMonth) return [];
+  const selectedDetails = useMemo(() => {
+    if (!selectedPropertyId || !selectedYearMonth) return {};
     return rentExpenses
       .filter(exp => exp.property_id === selectedPropertyId && exp.date.slice(0, 7) === selectedYearMonth)
       .reduce((acc, exp) => {
@@ -106,7 +106,7 @@ export function PropertyDashboard() {
         acc[key].total += exp.amount || 0;
         return acc;
       }, {} as Record<string, { room_no: string; tenant_name: string; total: number }>);
-  })();
+  }, [selectedPropertyId, selectedYearMonth, rentExpenses]);
 
     return (
     <div className="space-y-8">
@@ -143,8 +143,8 @@ export function PropertyDashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue={viewMode} onValueChange={v => setViewMode(v as 'month' | 'year')} className="mb-4">
-              <TabsList>
+            <Tabs defaultValue={viewMode} onValueChange={v => setViewMode(v as 'month' | 'year')} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="month">月別</TabsTrigger>
                 <TabsTrigger value="year">年別</TabsTrigger>
               </TabsList>
@@ -156,33 +156,27 @@ export function PropertyDashboard() {
                       <XAxis dataKey="yearMonth" />
                       <YAxis />
                       <Tooltip />
-                      <Bar dataKey="total" fill="#3B82F6" />
+                      <Bar dataKey="total" fill="#10B981" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border">
-                    <thead>
-                      <tr>
-                        <th className="border px-2 py-1">年月</th>
-                        <th className="border px-2 py-1">月の収入</th>
-                        <th className="border px-2 py-1">詳細</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {monthGroups.map((row) => (
-                        <tr key={row.yearMonth}>
-                          <td className="border px-2 py-1">{row.yearMonth}</td>
-                          <td className="border px-2 py-1">¥{row.total.toLocaleString()}</td>
-                          <td className="border px-2 py-1">
-                            <Button size="sm" variant="outline" onClick={() => setSelectedYearMonth(row.yearMonth)}>
-                              契約者内訳
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {/* 縦に伸びるカード形式のリスト */}
+                <div className="space-y-3">
+                  {monthGroups.map((row) => (
+                    <div key={row.yearMonth} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="text-lg font-semibold text-gray-900">{row.yearMonth}</div>
+                          <div className="text-2xl font-bold text-green-600">¥{row.total.toLocaleString()}</div>
+                        </div>
+                        <div className="flex-shrink-0">
+                          <Button size="sm" variant="outline" onClick={() => setSelectedYearMonth(row.yearMonth)}>
+                            契約者内訳
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </TabsContent>
               <TabsContent value="year">
@@ -197,28 +191,23 @@ export function PropertyDashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border">
-                    <thead>
-                      <tr>
-                        <th className="border px-2 py-1">年</th>
-                        <th className="border px-2 py-1">年の収入</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {yearGroups.map((row) => (
-                        <tr key={row.year}>
-                          <td className="border px-2 py-1">{row.year}</td>
-                          <td className="border px-2 py-1">¥{row.total.toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {/* 縦に伸びるカード形式のリスト */}
+                <div className="space-y-3">
+                  {yearGroups.map((row) => (
+                    <div key={row.year} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="text-lg font-semibold text-gray-900">{row.year}年</div>
+                          <div className="text-2xl font-bold text-green-600">¥{row.total.toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </TabsContent>
             </Tabs>
-              </CardContent>
-            </Card>
+          </CardContent>
+        </Card>
       )}
 
       {/* 3. 契約者ごとの内訳（月別詳細） */}
@@ -248,29 +237,32 @@ export function PropertyDashboard() {
                 ¥{Object.values(selectedDetails).reduce((sum, row) => sum + (row.total || 0), 0).toLocaleString()}
               </span>
             </div>
-              <div className="overflow-x-auto">
-              <table className="min-w-full border text-sm">
-                  <thead>
-                  <tr>
-                    <th className="border px-2 py-1">部屋No.</th>
-                    <th className="border px-2 py-1">契約者</th>
-                    <th className="border px-2 py-1">合計</th>
-                    <th className="border px-2 py-1">年月</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                  {rentExpenses
-                    .filter(exp => exp.property_id === selectedPropertyId && exp.date.slice(0, 7) === selectedYearMonth)
-                    .map((exp, i) => (
-                      <tr key={`${exp.room_no || ''}${exp.tenant_name || ''}${i}`}>
-                        <td className="border px-2 py-1">{exp.room_no || '-'}</td>
-                        <td className="border px-2 py-1">{exp.tenant_name || '-'}</td>
-                        <td className="border px-2 py-1">{exp.amount !== null ? `¥${exp.amount.toLocaleString()}` : '-'}</td>
-                        <td className="border px-2 py-1">{exp.date.slice(0, 7)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* 縦に伸びるカード形式の契約者リスト */}
+              <div className="space-y-3">
+                {rentExpenses
+                  .filter(exp => exp.property_id === selectedPropertyId && exp.date.slice(0, 7) === selectedYearMonth)
+                  .map((exp, i) => (
+                    <div key={`${exp.room_no || ''}${exp.tenant_name || ''}${i}`} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div>
+                          <div className="text-sm text-gray-500 mb-1">部屋No.</div>
+                          <div className="font-semibold text-gray-900">{exp.room_no || '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 mb-1">契約者</div>
+                          <div className="font-semibold text-gray-900">{exp.tenant_name || '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 mb-1">合計</div>
+                          <div className="font-bold text-green-600">{exp.amount !== null ? `¥${exp.amount.toLocaleString()}` : '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500 mb-1">年月</div>
+                          <div className="font-semibold text-gray-900">{exp.date.slice(0, 7)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </CardContent>
           </Card>

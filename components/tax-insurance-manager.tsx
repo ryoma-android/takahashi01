@@ -367,23 +367,24 @@ export function TaxInsuranceManager() {
       {/* CRMライクな税務・保険管理ダッシュボード */}
       <div className="space-y-6">
         {/* ヘッダーセクション */}
-        <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 rounded-2xl p-8 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">税務・保険管理</h1>
-              <p className="text-purple-100 text-lg">支払予定の一元管理と期限管理</p>
+        <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 rounded-2xl p-6 sm:p-8 text-white">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-6">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">税務・保険管理</h1>
+              <p className="text-purple-100 text-base sm:text-lg">支払予定の一元管理と期限管理</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-2xl font-bold">{items.length}</div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="text-center sm:text-right">
+                <div className="text-xl sm:text-2xl font-bold">{items.length}</div>
                 <div className="text-purple-100 text-sm">管理項目</div>
               </div>
               <Button 
                 onClick={() => setIsAddDialogOpen(true)}
-                className="bg-white text-purple-600 hover:bg-purple-50 font-semibold px-6 py-3 rounded-xl shadow-lg"
+                className="bg-white text-purple-600 hover:bg-purple-50 font-semibold px-4 sm:px-6 py-2 sm:py-3 rounded-xl shadow-lg text-sm sm:text-base"
               >
-                <Plus className="h-5 w-5 mr-2" />
-                新規項目
+                <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                <span className="hidden sm:inline">新規項目</span>
+                <span className="sm:hidden">項目追加</span>
               </Button>
             </div>
           </div>
@@ -432,89 +433,89 @@ export function TaxInsuranceManager() {
         {items.length > 0 && (
           <>
             {/* 統計カード */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl flex items-center justify-center">
-                    <Clock className="h-6 w-6 text-yellow-600" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-100 to-orange-100 rounded-xl flex items-center justify-center">
+                    <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
                   </div>
-                  <Badge variant="outline" className="text-yellow-600 border-yellow-200">
+                  <Badge variant="outline" className="text-yellow-600 border-yellow-200 text-xs sm:text-sm">
                     未払い
                   </Badge>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-1">{pendingItems.length}</div>
-                <p className="text-sm text-gray-600">項目</p>
+                <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{pendingItems.length}</div>
+                <p className="text-xs sm:text-sm text-gray-600">項目</p>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-pink-100 rounded-xl flex items-center justify-center">
-                    <AlertTriangle className="h-6 w-6 text-red-600" />
+              <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-red-100 to-pink-100 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
                   </div>
-                  <Badge variant="outline" className="text-red-600 border-red-200">
+                  <Badge variant="outline" className="text-red-600 border-red-200 text-xs sm:text-sm">
                     期限切れ
                   </Badge>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-1">{overdueItems.length}</div>
-                <p className="text-sm text-gray-600">項目</p>
+                <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">{overdueItems.length}</div>
+                <p className="text-xs sm:text-sm text-gray-600">項目</p>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center">
-                    <Calendar className="h-6 w-6 text-blue-600" />
+              <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center">
+                    <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                   </div>
-                  <Badge variant="outline" className="text-blue-600 border-blue-200">
+                  <Badge variant="outline" className="text-blue-600 border-blue-200 text-xs sm:text-sm">
                     未払い金額
                   </Badge>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 mb-1">¥{totalPendingAmount.toLocaleString()}</div>
-                <p className="text-sm text-gray-600">合計</p>
+                <div className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">¥{totalPendingAmount.toLocaleString()}</div>
+                <p className="text-xs sm:text-sm text-gray-600">合計</p>
               </div>
 
-              <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-orange-100 rounded-xl flex items-center justify-center">
-                    <AlertTriangle className="h-6 w-6 text-red-600" />
+              <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-red-100 to-orange-100 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
                   </div>
-                  <Badge variant="outline" className="text-red-600 border-red-200">
+                  <Badge variant="outline" className="text-red-600 border-red-200 text-xs sm:text-sm">
                     要対応
                   </Badge>
                 </div>
-                <div className="text-3xl font-bold text-red-600 mb-1">¥{totalOverdueAmount.toLocaleString()}</div>
-                <p className="text-sm text-gray-600">期限切れ金額</p>
+                <div className="text-2xl sm:text-3xl font-bold text-red-600 mb-1">¥{totalOverdueAmount.toLocaleString()}</div>
+                <p className="text-xs sm:text-sm text-gray-600">期限切れ金額</p>
               </div>
             </div>
 
             {/* 緊急対応セクション */}
             {(overdueItems.length > 0 || pendingItems.some(item => (getDaysUntilDue(item.dueDate) ?? 0) <= 7)) && (
-              <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-2xl p-6 border border-red-200 shadow-lg">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-                    <AlertTriangle className="h-5 w-5 text-red-600" />
+              <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-2xl p-4 sm:p-6 border border-red-200 shadow-lg">
+                <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-red-800">緊急対応が必要な項目</h2>
-                    <p className="text-red-700 text-sm">期限切れまたは7日以内に期限を迎える項目</p>
+                    <h2 className="text-lg sm:text-xl font-bold text-red-800">緊急対応が必要な項目</h2>
+                    <p className="text-red-700 text-xs sm:text-sm">期限切れまたは7日以内に期限を迎える項目</p>
                   </div>
                 </div>
-                <div className="grid gap-4">
+                <div className="grid gap-3 sm:gap-4">
                   {[...overdueItems, ...pendingItems.filter(item => (getDaysUntilDue(item.dueDate) ?? 0) <= 7)].map((item) => (
-                    <div key={item.id} className="bg-white rounded-xl p-6 border border-red-200 shadow-sm hover:shadow-md transition-all duration-200">
-                      <div className="flex items-center justify-between">
+                    <div key={item.id} className="bg-white rounded-xl p-4 sm:p-6 border border-red-200 shadow-sm hover:shadow-md transition-all duration-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <h3 className="font-bold text-gray-900 text-lg">{item.name}</h3>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-3">
+                            <h3 className="font-bold text-gray-900 text-base sm:text-lg">{item.name}</h3>
                             {item.municipality && (
-                              <Badge variant="outline" className="text-xs border-blue-200 text-blue-700">
+                              <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 w-fit">
                                 <Building2 className="h-3 w-3 mr-1" />
                                 {item.municipality}
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 mb-2">
                             <span className="flex items-center gap-1">
-                              <Calendar className="h-4 w-4" />
+                              <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
                               期限: {item.dueDate}
                             </span>
                             {(() => { 
@@ -527,20 +528,20 @@ export function TaxInsuranceManager() {
                             })()}
                           </div>
                           {item.insuranceCompany && (
-                            <p className="text-sm text-gray-600">保険会社: {item.insuranceCompany}</p>
+                            <p className="text-xs sm:text-sm text-gray-600">保険会社: {item.insuranceCompany}</p>
                           )}
                           {item.contractPeriod && (
-                            <p className="text-sm text-gray-600">契約期間: {item.contractPeriod}</p>
+                            <p className="text-xs sm:text-sm text-gray-600">契約期間: {item.contractPeriod}</p>
                           )}
                         </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-red-600 mb-3">
+                        <div className="text-center sm:text-right">
+                          <div className="text-xl sm:text-2xl font-bold text-red-600 mb-3">
                             ¥{item.amount.toLocaleString()}
                           </div>
                           {item.status !== 'paid' && (
                             <Button 
                               size="sm" 
-                              className="bg-red-600 hover:bg-red-700 text-white"
+                              className="bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm"
                               onClick={() => markAsPaid(item.id)}
                             >
                               支払済にする
@@ -556,113 +557,129 @@ export function TaxInsuranceManager() {
 
             {/* メインリスト */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-3">
-                      <FileText className="h-6 w-6 text-purple-600" />
-                      税務・保険管理
-                      <Badge variant="secondary" className="ml-2">
-                        {visibleItems.length}件
-                      </Badge>
-                    </h2>
-                    <p className="text-gray-600 mt-1">支払予定の管理と期限チェック</p>
-                  </div>
-                  <Button 
-                    onClick={() => setIsAddDialogOpen(true)}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg"
-                  >
-                    <Plus className="h-5 w-5 mr-2" />
-                    新規項目
-                  </Button>
+              <div className="p-4 sm:p-6 border-b border-gray-100">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-800 flex items-center gap-2 sm:gap-3">
+                    <Calculator className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+                    税務・保険管理
+                    <Badge variant="secondary" className="text-xs sm:text-sm">
+                      {items.length}件
+                    </Badge>
+                  </h2>
                 </div>
               </div>
               
-              <div className="p-6">
-                <div className="grid gap-4">
-                  {visibleItems.map((item) => (
-                    <div key={item.id} className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-6 border border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all duration-300">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <Badge className={`${getStatusColor(item.status)} font-medium`}>
-                              {getStatusIcon(item.status)}
-                              {getStatusText(item.status)}
-                            </Badge>
-                            <h3 className="font-bold text-gray-900 text-lg">{item.name}</h3>
-                            {item.municipality && (
-                              <Badge variant="outline" className="text-xs border-blue-200 text-blue-700">
-                                <Building2 className="h-3 w-3 mr-1" />
-                                {item.municipality}
-                              </Badge>
-                            )}
+              <div className="p-4 sm:p-6">
+                {visibleItems.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle className="h-8 w-8 text-purple-600" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">すべての項目が完了しました</h3>
+                    <p className="text-gray-500">新しい税務・保険項目を追加して管理を続けましょう</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {visibleItems.map((item) => (
+                      <div key={item.id} className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:border-purple-300 hover:shadow-lg transition-all duration-300">
+                        <div className="space-y-4">
+                          {/* ヘッダー部分 */}
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                              <FileText className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-gray-900 text-lg truncate">{item.name}</h3>
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <Badge className={`${getStatusColor(item.status)} text-xs`}>
+                                  {getStatusIcon(item.status)}
+                                  {getStatusText(item.status)}
+                                </Badge>
+                                {item.municipality && (
+                                  <Badge variant="outline" className="text-xs border-blue-200 text-blue-700">
+                                    <Building2 className="h-3 w-3 mr-1" />
+                                    {item.municipality}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                            <span className="flex items-center gap-1">
+                          
+                          {/* 詳細情報 */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
+                            <div className="flex items-center gap-1">
                               <FileText className="h-4 w-4" />
-                              {item.category}
-                            </span>
-                            <span className="flex items-center gap-1">
+                              <span>{item.category}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" />
-                              期限: {item.dueDate}
-                            </span>
+                              <span>期限: {item.dueDate}</span>
+                            </div>
                             {(() => { 
                               const days = getDaysUntilDue(item.dueDate); 
                               return item.status === 'overdue' ? (
-                                <span className="text-red-600 font-semibold">({days === null ? '-' : `${Math.abs(days)}日経過`})</span>
+                                <div className="text-red-600 font-semibold">({days === null ? '-' : `${Math.abs(days)}日経過`})</div>
                               ) : item.status === 'pending' ? (
-                                <span className="text-amber-600 font-semibold">({days === null ? '-' : `${days}日後`})</span>
+                                <div className="text-amber-600 font-semibold">({days === null ? '-' : `${days}日後`})</div>
                               ) : (
-                                <span className="text-green-600 font-semibold">支払済: {item.paymentDate}</span>
+                                <div className="text-green-600 font-semibold">支払済: {item.paymentDate}</div>
                               ); 
                             })()}
                           </div>
-                          {item.insuranceCompany && (
-                            <p className="text-sm text-gray-600">保険会社: {item.insuranceCompany}</p>
-                          )}
-                          {item.contractPeriod && (
-                            <p className="text-sm text-gray-600">契約期間: {item.contractPeriod}</p>
-                          )}
-                          {item.description && (
-                            <p className="text-sm text-gray-500 mt-2">{item.description}</p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-gray-900 mb-3">
-                            ¥{item.amount.toLocaleString()}
-                          </div>
-                          {item.status !== 'paid' && (
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                size="sm" 
-                                className="bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() => markAsPaid(item.id)}
-                              >
-                                支払済
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="border-purple-200 text-purple-700 hover:bg-purple-50"
-                                onClick={() => handleEdit(item)}
-                              >
-                                編集
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                className="border-red-200 text-red-700 hover:bg-red-50"
-                                onClick={() => handleDelete(item.id)}
-                              >
-                                削除
-                              </Button>
+                          
+                          {/* 追加情報 */}
+                          {(item.insuranceCompany || item.contractPeriod || item.description) && (
+                            <div className="space-y-2 text-sm text-gray-600">
+                              {item.insuranceCompany && (
+                                <p>保険会社: {item.insuranceCompany}</p>
+                              )}
+                              {item.contractPeriod && (
+                                <p>契約期間: {item.contractPeriod}</p>
+                              )}
+                              {item.description && (
+                                <p className="text-gray-500">{item.description}</p>
+                              )}
                             </div>
                           )}
+                          
+                          {/* 金額とアクション */}
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2 border-t border-gray-100">
+                            <div className="text-2xl font-bold text-gray-900">
+                              ¥{item.amount.toLocaleString()}
+                            </div>
+                            {item.status !== 'paid' && (
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                <Button 
+                                  size="sm" 
+                                  className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                                  onClick={() => markAsPaid(item.id)}
+                                >
+                                  支払済
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  className="border-purple-200 text-purple-700 hover:bg-purple-50 w-full sm:w-auto"
+                                  onClick={() => handleEdit(item)}
+                                >
+                                  編集
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  className="border-red-200 text-red-700 hover:bg-red-50 w-full sm:w-auto"
+                                  onClick={() => handleDelete(item.id)}
+                                >
+                                  削除
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </>

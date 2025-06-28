@@ -174,14 +174,6 @@ const nextConfig = {
             },
           },
         };
-
-        // より強力なChunkLoadError対策
-        config.plugins.push(
-          new (require('webpack')).DefinePlugin({
-            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
-            'process.env.NEXT_PUBLIC_APP_URL': JSON.stringify(process.env.NEXT_PUBLIC_APP_URL),
-          })
-        );
       }
     }
     return config;
@@ -191,11 +183,8 @@ const nextConfig = {
   generateEtags: false,
   compress: true,
   poweredByHeader: false,
-  // ChunkLoadError対策: より強力な設定
-  experimental: {
-    optimizeCss: true,
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
-  },
+  // CSS最適化を無効にしてcrittersエラーを回避
+  // swcMinify: false,
   // より強力なキャッシュ無効化
   headers: async () => {
     return [

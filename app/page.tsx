@@ -29,7 +29,9 @@ import {
   Plus,
   Check,
   X,
-  Bug
+  Bug,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -214,6 +216,7 @@ export default function TakahashiHomeSystem() {
   const contractDetails = selectedMonth && selectedProperty ?
     rentExpenses.filter(e => e.property_id === selectedProperty.id && e.date.slice(0, 7) === selectedMonth)
       .map(e => ({
+        id: e.id,
         room_no: e.room_no ?? '',
         tenant_name: e.tenant_name ?? '',
         amount: e.amount,
@@ -291,6 +294,7 @@ export default function TakahashiHomeSystem() {
         const key = `${exp.room_no || ''}_${exp.tenant_name || ''}`;
         if (!acc[key]) {
           acc[key] = {
+            id: exp.id,
             room_no: exp.room_no || '',
             tenant_name: exp.tenant_name || '',
             total: 0,
@@ -298,7 +302,7 @@ export default function TakahashiHomeSystem() {
         }
         acc[key].total += exp.amount || 0;
         return acc;
-      }, {} as Record<string, { room_no: string; tenant_name: string; total: number }>);
+      }, {} as Record<string, { id: number; room_no: string; tenant_name: string; total: number }>);
   })();
 
   const [isPropertyDetailModalOpen, setIsPropertyDetailModalOpen] = useState(false);
@@ -982,14 +986,14 @@ export default function TakahashiHomeSystem() {
 
               {/* 月ごとの収入一覧 - カード形式 */}
               <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-green-600 to-blue-500 rounded-t-xl p-6">
+                <CardHeader className="bg-gradient-to-r from-green-600 to-blue-500 rounded-t-xl p-4 sm:p-6">
                   <CardTitle className="text-white text-xl font-bold flex items-center gap-2">
                     <Calendar className="h-6 w-6 text-white" />
                     月ごとの収入一覧
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3">
                     {months.map((m) => {
                       const monthData = selectedPropertyMonthlyData.find(d => d.yearMonth === m.replace('-', '/'));
                       const total = monthData?.income || 0;
@@ -998,15 +1002,15 @@ export default function TakahashiHomeSystem() {
                           key={m}
                           size="sm"
                           variant={selectedMonth === m ? 'default' : 'outline'}
-                          className={`h-auto p-4 flex flex-col items-center gap-2 rounded-xl transition-all duration-200 ${
+                          className={`h-auto p-2 sm:p-4 flex flex-col items-center gap-1 sm:gap-2 rounded-xl transition-all duration-200 text-xs sm:text-sm ${
                             selectedMonth === m 
                               ? 'bg-gradient-to-br from-blue-500 to-green-500 text-white shadow-lg' 
                               : 'hover:bg-blue-50 hover:border-blue-300'
                           }`}
                           onClick={() => setSelectedMonth(selectedMonth === m ? null : m)}
                         >
-                          <div className="text-lg font-bold">{m.replace('-', '/')}</div>
-                          <div className={`text-sm ${selectedMonth === m ? 'text-white/90' : 'text-gray-600'}`}>
+                          <div className="font-bold text-xs sm:text-lg">{m.replace('-', '/')}</div>
+                          <div className={`text-xs sm:text-sm ${selectedMonth === m ? 'text-white/90' : 'text-gray-600'}`}>
                             ¥{total.toLocaleString()}
                           </div>
                         </Button>
@@ -1019,87 +1023,90 @@ export default function TakahashiHomeSystem() {
               {/* 契約者内訳テーブル */}
               {selectedMonth && (
                 <Card className="border-0 shadow-lg">
-                  <CardHeader className="bg-gradient-to-r from-purple-600 to-pink-500 rounded-t-xl p-6">
+                  <CardHeader className="bg-gradient-to-r from-purple-600 to-pink-500 rounded-t-xl p-4 sm:p-6">
                     <CardTitle className="text-white text-xl font-bold flex items-center gap-2">
                       <Users className="h-6 w-6 text-white" />
                       {selectedMonth.replace('-', '/')}の契約者内訳
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-6">
-                    {/* 物件名・合計金額を表示 */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-xl border border-green-200">
-                        <div className="text-sm text-gray-600 mb-1">合計金額</div>
-                        <div className="font-bold text-green-700 text-lg">
-                          ¥{contractDetails.reduce((sum, row) => sum + (row.amount || 0), 0).toLocaleString()}
-                        </div>
+                  <CardContent className="p-4 sm:p-6">
+                    {/* デバッグ情報 */}
+                    {process.env.NODE_ENV === 'development' && (
+                      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
+                        <div className="font-bold mb-2">デバッグ情報:</div>
+                        <div>契約者数: {contractDetails.length}</div>
+                        <div>選択物件ID: {selectedProperty?.id}</div>
+                        <div>選択月: {selectedMonth}</div>
+                        <div>expenses数: {expenses.length}</div>
                       </div>
-                    </div>
+                    )}
                     
-                    {/* スクロール可能なテーブルラッパー */}
-                    <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full">
-                          <thead>
-                            <tr className="bg-gradient-to-r from-gray-50 to-gray-100">
-                              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">部屋No.</th>
-                              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">契約者</th>
-                              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900">合計</th>
-                              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">操作</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {contractDetails.map((row, i) => (
-                              <tr key={(row.room_no || '') + (row.tenant_name || '')} className="hover:bg-blue-50/50 transition-colors duration-150">
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div className="flex items-center">
-                                    <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                                      <span className="text-sm font-semibold text-blue-700">{row.room_no || '-'}</span>
-                                    </div>
-                                    <span className="text-sm font-medium text-gray-900">{row.room_no || '-'}</span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span className="text-sm text-gray-900">{row.tenant_name || '-'}</span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right">
-                                  <span className="text-sm font-bold text-green-700">¥{row.amount.toLocaleString()}</span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-center">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline" 
-                                      className="h-8 w-8 p-0 rounded-full hover:bg-blue-100 hover:border-blue-300" 
-                                      onClick={() => handleEditContract(expenses.find(e => e.property_id === selectedProperty?.id && e.date.slice(0, 7) === selectedMonth && e.room_no === row.room_no && e.tenant_name === row.tenant_name && e.amount === row.amount)!)}
-                                    >
-                                      <svg className="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13h3l8-8a2.828 2.828 0 00-4-4l-8 8v3z" /></svg>
-                                    </Button>
-                                    <Button 
-                                      size="sm" 
-                                      variant="outline" 
-                                      className="h-8 w-8 p-0 rounded-full hover:bg-red-100 hover:border-red-300" 
-                                      onClick={() => handleDeleteContract(expenses.find(e => e.property_id === selectedProperty?.id && e.date.slice(0, 7) === selectedMonth && e.room_no === row.room_no && e.tenant_name === row.tenant_name && e.amount === row.amount)!)}
-                                    >
-                                      <svg className="h-4 w-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className="bg-gray-50 px-6 py-4 text-center border-t border-gray-200">
-                        <Button 
-                          size="sm" 
-                          onClick={handleAddContract}
-                          className="bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          契約者追加
-                        </Button>
-                      </div>
+                    {/* 縦に伸びるカード形式の契約者リスト */}
+                    <div className="space-y-3">
+                      {contractDetails.map((row, i) => (
+                        <div key={(row.room_no || '') + (row.tenant_name || '')} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                          {/* デバッグ情報 */}
+                          {process.env.NODE_ENV === 'development' && (
+                            <div className="mb-3 p-2 bg-gray-50 border border-gray-200 rounded text-xs">
+                              <div className="font-bold mb-1">契約者データ #{i + 1}:</div>
+                              <div>部屋No: "{row.room_no}"</div>
+                              <div>契約者: "{row.tenant_name}"</div>
+                              <div>金額: {row.amount}</div>
+                            </div>
+                          )}
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div>
+                              <div className="text-sm text-gray-500 mb-1">部屋No.</div>
+                              <div className="flex items-center">
+                                <span className="font-semibold text-gray-900">{row.room_no || '-'}</span>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-500 mb-1">契約者</div>
+                              <div className="font-semibold text-gray-900">{row.tenant_name || '-'}</div>
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-500 mb-1">合計</div>
+                              <div className="font-bold text-green-600">¥{row.amount.toLocaleString()}</div>
+                            </div>
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                onClick={() => {
+                                  const foundExpense = expenses.find(e => e.id === row.id);
+                                  if (foundExpense) {
+                                    handleEditContract(foundExpense);
+                                  } else {
+                                    console.error('Contract not found:', { row, selectedProperty, selectedMonth });
+                                    alert('契約データが見つかりませんでした');
+                                  }
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600 hover:text-red-800 p-1"
+                                onClick={() => {
+                                  const foundExpense = expenses.find(e => e.id === row.id);
+                                  if (foundExpense) {
+                                    handleDeleteContract(foundExpense);
+                                  } else {
+                                    console.error('Contract not found:', { row, selectedProperty, selectedMonth });
+                                    alert('契約データが見つかりませんでした');
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </CardContent>
                 </Card>

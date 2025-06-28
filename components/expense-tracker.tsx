@@ -988,7 +988,7 @@ export function ExpenseTracker() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
             <div className="text-sm text-gray-600">
               契約者数: {selected && Object.values(selectedDetails).length}名
             </div>
@@ -1003,61 +1003,51 @@ export function ExpenseTracker() {
                 setEditingTenant(null);
                 setIsTenantModalOpen(true);
               }}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
             >
               <Plus className="h-4 w-4 mr-2" />
               契約者追加
             </Button>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">部屋No.</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">契約者</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">合計</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {selected && Object.values(selectedDetails).map((row, i) => (
-                    <tr key={row.room_no + row.tenant_name} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {row.room_no}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                        {row.tenant_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600 text-right">
-                        {row.total !== null ? `¥${row.total.toLocaleString()}` : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditTenant(row)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteTenant(row)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {/* 縦に伸びるカード形式の契約者リスト */}
+          <div className="space-y-3">
+            {selected && Object.values(selectedDetails).map((row, i) => (
+              <div key={row.room_no + row.tenant_name} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">部屋No.</div>
+                    <div className="font-semibold text-gray-900">{row.room_no}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">契約者</div>
+                    <div className="font-semibold text-gray-900">{row.tenant_name}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">合計</div>
+                    <div className="font-bold text-green-600">{row.total !== null ? `¥${row.total.toLocaleString()}` : '-'}</div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleEditTenant(row)}
+                      className="text-blue-600 hover:text-blue-800 p-1"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeleteTenant(row)}
+                      className="text-red-600 hover:text-red-800 p-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </DialogContent>
       </Dialog>
@@ -1140,66 +1130,69 @@ export function ExpenseTracker() {
       {/* CRMライクな収入管理ダッシュボード */}
       <div className="space-y-6">
         {/* ヘッダーセクション */}
-        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">物件収入管理</h1>
-              <p className="text-blue-100 text-lg">物件別の収入を一元管理</p>
-                </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-2xl font-bold">{propertyMonthGroups.length}</div>
+        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-6 sm:p-8 text-white">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-6">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2">物件収入管理</h1>
+              <p className="text-blue-100 text-base sm:text-lg">物件別の収入を一元管理</p>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="text-center sm:text-right">
+                <div className="text-xl sm:text-2xl font-bold">{propertyMonthGroups.length}</div>
                 <div className="text-blue-100 text-sm">収入レコード</div>
               </div>
               <Button 
                 onClick={() => setIsAddPropertyDialogOpen(true)}
-                className="bg-white text-blue-600 hover:bg-blue-50 font-semibold px-6 py-3 rounded-xl shadow-lg"
+                className="bg-white text-blue-600 hover:bg-blue-50 font-semibold px-4 sm:px-6 py-2 sm:py-3 rounded-xl shadow-lg text-sm sm:text-base"
               >
-                <Plus className="h-5 w-5 mr-2" />
-                新規物件追加
+                <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                <span className="hidden sm:inline">新規物件追加</span>
+                <span className="sm:hidden">物件追加</span>
               </Button>
-                      </div>
-                  </div>
-                </div>
+            </div>
+          </div>
+        </div>
 
         {/* フィルターセクション */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-          <div className="flex items-center gap-4 mb-6">
-            <Filter className="h-6 w-6 text-gray-600" />
-            <h2 className="text-xl font-semibold text-gray-800">フィルター</h2>
+        <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Filter className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800">フィルター</h2>
+            </div>
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={clearFilters}
-              className="text-gray-500 hover:text-gray-700 ml-auto"
+              className="text-gray-500 hover:text-gray-700 sm:ml-auto w-fit"
             >
               <X className="h-4 w-4 mr-2" />
               フィルタークリア
             </Button>
-                      </div>
+          </div>
           
           {/* 物件フィルター */}
           <div>
             <Label className="text-sm font-medium text-gray-700 mb-3 block">物件で絞り込み</Label>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
               {properties.map(property => (
                 <Badge
                   key={property.id}
                   variant={selectedProperties.includes(property.id) ? "default" : "outline"}
-                  className={`cursor-pointer transition-all px-4 py-2 text-sm font-medium ${
+                  className={`cursor-pointer transition-all px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium ${
                     selectedProperties.includes(property.id)
                       ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
                       : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300 hover:border-blue-300'
                   }`}
                   onClick={() => handlePropertyFilter(property.id)}
                 >
-                  <Building2 className="h-4 w-4 mr-2" />
-                  {property.name}
+                  <Building2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <span className="truncate max-w-20 sm:max-w-none">{property.name}</span>
                 </Badge>
               ))}
-                </div>
-              </div>
+            </div>
           </div>
+        </div>
 
         {/* 収入一覧 */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
@@ -1230,40 +1223,40 @@ export function ExpenseTracker() {
                 </Button>
                   </div>
             ) : (
-              <div className="grid gap-6">
+              <div className="grid gap-4 sm:gap-6">
                 {propertyMonthGroups.map((row, index) => (
                   <div 
                     key={row.propertyId + row.yearMonth}
-                    className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-6 border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300"
+                    className="bg-gradient-to-r from-gray-50 to-white rounded-xl p-4 sm:p-6 border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300"
                   >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                          <Building2 className="h-6 w-6 text-white" />
-                            </div>
-                        <div>
-                          <h3 className="font-bold text-gray-900 text-lg">{row.propertyName}</h3>
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-gray-900 text-base sm:text-lg truncate">{row.propertyName}</h3>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-600">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" />
                               {row.yearMonth}
-                        </span>
-                            <Badge variant="outline" className="text-xs">
+                            </span>
+                            <Badge variant="outline" className="text-xs w-fit">
                               収入データ
                             </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl sm:text-3xl font-bold text-green-600 mb-1">
+                          ¥{row.total.toLocaleString()}
+                        </div>
+                        <div className="text-sm text-gray-500">月の収入</div>
                       </div>
                     </div>
-                  </div>
-                      <div className="text-right">
-                        <div className="text-3xl font-bold text-green-600 mb-1">
-                          ¥{row.total.toLocaleString()}
-                </div>
-                        <div className="text-sm text-gray-500">月の収入</div>
-          </div>
-                  </div>
                     
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                      <div className="flex items-center gap-6 text-sm text-gray-600">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-gray-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 text-sm text-gray-600">
                         <span className="flex items-center gap-2">
                           <Receipt className="h-4 w-4" />
                           収入管理
@@ -1271,20 +1264,21 @@ export function ExpenseTracker() {
                         <span className="flex items-center gap-2">
                           <TrendingUp className="h-4 w-4" />
                           家賃収入
-                          </span>
-                        </div>
-                      <div className="flex items-center gap-2">
-                          <Button 
-                            size="sm" 
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button 
+                          size="sm" 
                           variant="outline"
                           onClick={() => setSelected({ propertyId: row.propertyId, yearMonth: row.yearMonth })}
-                          className="border-blue-200 text-blue-700 hover:bg-blue-50 font-medium"
+                          className="border-blue-200 text-blue-700 hover:bg-blue-50 font-medium text-xs sm:text-sm"
                         >
-                          <List className="h-4 w-4 mr-2" />
-                          契約者詳細
-                          </Button>
-                          <Button 
-                            size="sm" 
+                          <List className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                          <span className="hidden sm:inline">契約者詳細</span>
+                          <span className="sm:hidden">詳細</span>
+                        </Button>
+                        <Button 
+                          size="sm" 
                           variant="outline"
                           onClick={() => {
                             const expense = expenses.find(exp => 
@@ -1294,15 +1288,16 @@ export function ExpenseTracker() {
                             );
                             if (expense) handleEditExpense(expense);
                           }}
-                          className="border-green-200 text-green-700 hover:bg-green-50 font-medium"
+                          className="border-green-200 text-green-700 hover:bg-green-50 font-medium text-xs sm:text-sm"
                         >
-                          <Edit className="h-4 w-4 mr-2" />
-                          編集
-                          </Button>
-                          <Button 
-                            size="sm" 
+                          <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                          <span className="hidden sm:inline">編集</span>
+                          <span className="sm:hidden">編集</span>
+                        </Button>
+                        <Button 
+                          size="sm" 
                           variant="outline"
-                            onClick={() => {
+                          onClick={() => {
                             const expense = expenses.find(exp => 
                               exp.property_id === row.propertyId && 
                               exp.category === '家賃' &&
@@ -1310,14 +1305,15 @@ export function ExpenseTracker() {
                             );
                             if (expense) handleDeleteExpense(expense.id);
                           }}
-                          className="border-red-200 text-red-700 hover:bg-red-50 font-medium"
+                          className="border-red-200 text-red-700 hover:bg-red-50 font-medium text-xs sm:text-sm"
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          削除
-                          </Button>
-                        </div>
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                          <span className="hidden sm:inline">削除</span>
+                          <span className="sm:hidden">削除</span>
+                        </Button>
                       </div>
                     </div>
+                  </div>
                 ))}
               </div>
             )}
